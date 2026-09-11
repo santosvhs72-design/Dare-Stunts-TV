@@ -10,6 +10,7 @@
 // loop: a quick press can begin and end between two polls, and a menu that
 // silently drops presses is worse than one that is slightly slow.
 import { keyName } from '../ui/keys.js';
+import { activePad } from '../ui/pads.js';
 
 const HOLD_FIRST = 400;   // pad only: pause before a held direction repeats
 const HOLD_NEXT = 130;    // pad only: repeat rate afterwards
@@ -67,14 +68,8 @@ export class TvInput {
     if (!on) { this._prevPad.clear(); this._dir = null; }
   }
 
-  _pad() {
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const p of pads) if (p && p.connected) return p;
-    return null;
-  }
-
   _poll() {
-    const pad = this._pad();
+    const pad = activePad();
     this.padConnected = !!pad;
     if (pad) this.padName = pad.id;
     if (!pad || !this.enabled) { this._dir = null; this._prevPad.clear(); return; }

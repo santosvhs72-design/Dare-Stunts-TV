@@ -67,6 +67,7 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Opções do item | ↓ | ↓ |
 | Pausa | Voltar / Menu | Start |
 | Ligar/desligar o ghost | menu de pausa | Y, ou o menu de pausa |
+| Ver o que o comando envia | menu inicial &rarr; Comando | idem |
 
 A conduzir: RT acelera, LT trava, stick esquerdo vira, A é travão de mão.
 Num teclado, `G` liga e desliga o ghost sem parar a volta.
@@ -87,6 +88,13 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   mesma, a `WebView` ainda corre a sua própria navegação espacial por cima das
   mesmas teclas, o que leva o foco para fora do documento e deixa a app morta ao
   primeiro toque.
+- **O comando pode não ser o primeiro da lista.** Uma televisão Android costuma
+  expor o seu próprio telecomando como gamepad, num lugar só dele, e apanhar o
+  primeiro que aparece significa sondar o telecomando e ignorar o comando a
+  sério. Manda quem foi usado por último (`js/ui/pads.js`). Os botões do comando
+  são também reencaminhados pela `Activity` como teclas, para que a `WebView` que
+  não exponha a Gamepad API não deixe o comando sem forma de confirmar nada; a
+  ação repetida é absorvida pelo limite de 90 ms que já existia.
 - **A interface nunca usa o foco do DOM.** Cada ecrã tem o seu próprio cursor e
   reage a ações com nome, o que evita toda uma classe de problemas de foco.
 - **Loops e corkscrews são uma volta de uma hélice.** O ligeiro desvio lateral do

@@ -11,6 +11,8 @@ import { formatTime } from '../game/hud.js';
 import { loadCustom, deleteCustom } from '../world/customtracks.js';
 import { walkTrack } from '../world/track.js';
 import { drawTrackMap } from './map.js';
+import { keyName } from '../ui/keys.js';
+import { activePad, allPads } from '../ui/pads.js';
 
 export const esc = s => String(s).replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -48,6 +50,7 @@ export function homeScreen(app) {
     { id: 'play', label: 'Jogar', hint: 'escolher carro e pista' },
     { id: 'build', label: 'Construir pista', hint: 'editor com comando' },
     { id: 'sound', label: 'Som', hint: '' },
+    { id: 'pad', label: 'Comando', hint: 'ver o que o jogo recebe' },
   ];
   let i = 0;
 
@@ -79,9 +82,67 @@ export function homeScreen(app) {
         const id = items[i].id;
         if (id === 'play') app.push(carScreen(app));
         else if (id === 'build') app.openEditor(null);
+        else if (id === 'pad') app.push(padScreen(app));
         else { app.sound.setMuted(!app.sound.muted); paint(); }
       }
     },
+  };
+}
+
+/* --------------------------------------------------------------- gamepad -- */
+
+// What the page actually receives from a controller.
+//
+// A controller can fail in three different places and they look identical from
+// the sofa: its buttons may never reach the page at all, the Gamepad API may
+// not be exposed by this WebView, or several devices may be present -- a
+// television usually offers its own remote as a gamepad too -- and the game may
+// be listening to the wrong one. There is no console to open on a television,
+// so this tells them apart: every pad the browser admits to, which of them the
+// game is listening to, and the last few keys that arrived.
+export function padScreen(app) {
+  let seen = [];
+  const el = node(`<div class="screen"><div class="safe">
+    <div class="eyebrow">Comando</div>
+    <p class="sub" id="padapi"></p>
+    <div class="menu" id="padlist" style="min-width:56vw;margin-top:1vh"></div>
+    <p class="sub" id="padkeys" style="margin-top:1.5vh"></p>
+    ${legend([['b', 'B', 'voltar'], ['', '↕', 'carrega nos botões para os veres aqui']])}
+  </div></div>`);
+
+  const onKey = e => {
+    seen.unshift(`${keyName(e) || '?'} (${e.keyCode})`);
+    seen = seen.slice(0, 6);
+  };
+  addEventListener('keydown', onKey);
+
+  const paint = () => {
+    const has = !!navigator.getGamepads;
+    const pads = has ? allPads() : [];
+    const chosen = has ? activePad() : null;
+    el.querySelector('#padapi').textContent = !has
+      ? 'Gamepad API indisponível nesta WebView — só as teclas abaixo chegam ao jogo'
+      : pads.length
+        ? `${pads.length} comando(s) ligado(s) · o jogo ouve o que foi usado por último`
+        : 'Nenhum comando visível — carrega num botão do comando (só aparece depois disso)';
+    el.querySelector('#padlist').innerHTML = pads.map(p => {
+      const on = p.buttons.map((b, i) => (b && b.pressed ? i : null)).filter(i => i !== null);
+      const ax = [...p.axes].slice(0, 4).map(a => a.toFixed(2)).join('  ');
+      const mine = chosen && p.index === chosen.index;
+      return `<div class="item${mine ? ' on' : ''}">${esc(p.id.slice(0, 52))}
+        <span class="hint">botões ${on.length ? on.join(' ') : '—'} · eixos ${esc(ax)}</span></div>`;
+    }).join('');
+    el.querySelector('#padkeys').textContent = seen.length
+      ? `Teclas recebidas: ${seen.join('   ')}`
+      : 'Teclas recebidas: nenhuma ainda — o comando também deve aparecer aqui';
+  };
+  paint();
+  const timer = setInterval(paint, 120);
+
+  return {
+    el,
+    dispose() { clearInterval(timer); removeEventListener('keydown', onKey); },
+    key(a) { if (a === 'back') app.pop(); },
   };
 }
 

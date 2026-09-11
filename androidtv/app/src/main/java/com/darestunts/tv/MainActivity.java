@@ -41,9 +41,16 @@ public class MainActivity extends Activity {
      * presses, which walks focus out of the document and leaves the app dead to
      * input after the first press. Forwarding gives the page the only say.
      *
-     * Gamepad buttons are deliberately absent: a controller reaches the page
-     * through the Gamepad API, and forwarding them here as well would act on
-     * every press twice.
+     * A controller's face buttons are here too. They used to be left out, on the
+     * grounds that a controller reaches the page through the Gamepad API and
+     * forwarding them as well would act on every press twice -- but that leans
+     * the whole controller on an API that WebView does not always expose, and
+     * when it is missing the D-pad still works (Android sends it as DPAD_*,
+     * forwarded above) while A does nothing at all, so nothing can be confirmed
+     * and the controller looks dead. Forwarding costs nothing: the page already
+     * collapses an action arriving twice inside 90 ms, which it has to do
+     * anyway, because a pad's D-pad has always arrived as a key event *and* as
+     * a polled button.
      */
     private static final SparseArray<String> TV_KEYS = new SparseArray<>();
     static {
@@ -57,6 +64,15 @@ public class MainActivity extends Activity {
         TV_KEYS.put(KeyEvent.KEYCODE_SPACE, "Enter");
         TV_KEYS.put(KeyEvent.KEYCODE_MENU, "KeyM");
         TV_KEYS.put(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "KeyM");
+        // Controller face and shoulder buttons, named as the page names them.
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_A, "Enter");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_B, "Escape");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_X, "KeyX");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_Y, "KeyY");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_L1, "KeyQ");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_R1, "KeyE");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_START, "KeyM");
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_SELECT, "Escape");
     }
 
     @SuppressLint("SetJavaScriptEnabled")

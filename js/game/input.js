@@ -1,7 +1,10 @@
 import { keyName } from '../ui/keys.js';
+import { activePad } from '../ui/pads.js';
 
 const KEYS = {
-  throttle: ['ArrowUp', 'KeyW'],
+  // Enter is the controller's A button: the wrapper forwards it as a key, so a
+  // pad can still drive on a television where the Gamepad API is missing.
+  throttle: ['ArrowUp', 'KeyW', 'Enter'],
   brake: ['ArrowDown', 'KeyS'],
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
@@ -57,9 +60,8 @@ export class Input {
     let steer = (has(KEYS.right) ? 1 : 0) - (has(KEYS.left) ? 1 : 0);
     let handbrake = has(KEYS.handbrake);
 
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const p of pads) {
-      if (!p || !p.connected) continue;
+    const p = activePad();
+    if (p) {
       this.padConnected = true;
       this.padName = p.id;
 
@@ -82,7 +84,6 @@ export class Input {
       const back = btn(8) > 0.5;
       if (back && !this._prevPad.back) this._events.push('restart');
       this._prevPad.back = back;
-      break;
     }
 
     this.throttle = throttle;
