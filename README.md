@@ -22,6 +22,8 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
 - **Ghost do recordista**: bate o recorde e essa volta passa a correr contigo na
   vez seguinte, com o intervalo em segundos no HUD. Liga-se e desliga-se a meio
   da volta, e a escolha fica guardada.
+- **Ilustração no ecrã inicial** (`img/capa.svg`): desenhada com as cores e as
+  formas do próprio jogo, em SVG de 6 KB — nada de imagens pesadas no APK.
 - **Cockpit ao estilo de 1990**: painéis planos, mostradores redondos com
   ponteiro e números impressos, e nada de gradientes — porque o Stunts também
   não os tinha.

@@ -60,6 +60,7 @@ export function homeScreen(app) {
       <div class="homeside">
         <h1 class="brand">DARE <span>STUNTS</span></h1>
         <p class="sub">Loops, corkscrews e saltos. Contra o relógio.</p>
+        <img class="homeart" src="img/capa.svg" alt="" width="960" height="540">
       </div>
       <div class="menu" id="menu"></div>
     </div>

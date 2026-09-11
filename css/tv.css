@@ -28,6 +28,12 @@ h1.brand span{color:#ffb43a}
 /* --- Home --- */
 .homewrap{display:flex;flex:1;align-items:center;gap:6vw}
 .homeside{flex:1}
+/* A ilustração do ecrã inicial. A largura acompanha o ecrã, mas está limitada
+   também pela altura -- 44vh de altura são 78vh de largura a 16:9 -- porque num
+   ecrã largo e baixo a imagem empurrava-se a si e ao menu para fora da zona
+   segura. O limite vai na largura e não em max-height: com a altura cortada e a
+   largura mantida, a imagem sai esticada. */
+.homeart{display:block;margin-top:3.2vh;width:min(46vw,78vh);height:auto}
 .menu{display:flex;flex-direction:column;gap:1.6vh;min-width:26vw}
 .item{background:rgba(28,38,54,.6);border:2px solid rgba(120,160,210,.14);
   border-radius:14px;padding:2.2vh 2vw;font-size:1.7vw;font-weight:600;
