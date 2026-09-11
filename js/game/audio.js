@@ -229,7 +229,7 @@ export class Sound {
     bp.frequency.exponentialRampToValueAtTime(1500, t + dur);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.13 + 0.15 * v, t + 0.035);
+    g.gain.linearRampToValueAtTime(0.17 + 0.17 * v, t + 0.035);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(bp);
     bp.connect(g);
@@ -256,7 +256,7 @@ export class Sound {
     this.windGain.gain.setTargetAtTime(on * 0.13 * sp * sp, t, 0.08);
     this.windLp.frequency.setTargetAtTime(320 + st.speedKmh * 5.5, t, 0.1);
 
-    this.squealGain.gain.setTargetAtTime(on * 0.11 * clamp(st.squeal, 0, 1), t, 0.04);
+    this.squealGain.gain.setTargetAtTime(on * 0.15 * clamp(st.squeal, 0, 1), t, 0.04);
     if (this.squealBp) this.squealBp.frequency.setTargetAtTime(1500 + sp * 900, t, 0.1);
 
     // Rising edge of a slide. st.slip is already zero unless the car is on the

@@ -86,6 +86,7 @@ export class Car {
     this.crashTimer = 0;
     this.onCurb = false;
     this.slip = 0;
+    this.understeer = 0;
     this.gForce = 1;
     const f = this.track.frameAt(s);
     this.camPos = v3.mad(f.pos, f.up, 1.15);
@@ -145,6 +146,20 @@ export class Car {
     const aLatMax = (this.onCurb ? P.muCurb : P.mu) * Math.max(N, 0.4);
     const handbrake = input.handbrake && absV > 2 ? 1 : 0;
 
+    // Understeer: whether the corner is possible at all at this speed. Staying
+    // on the road asks for v^2 * curvature of lateral acceleration and the tyres
+    // can give aLatMax; past that the car runs wide however far the wheel is
+    // turned, which is the one thing a driver has to be told.
+    //
+    // It has to be measured here, from the road, because nothing downstream can
+    // see it. The steering lock below is capped at what grip allows, so the
+    // tyres are never *asked* for more than they can give and `excess` -- the
+    // sliding term -- stays exactly zero through a corner taken far too fast.
+    // Understeer in this simulation is the car quietly refusing to turn, and
+    // that refusal leaves no trace anywhere else.
+    const demand = v * v * Math.abs(f.kRight) / Math.max(aLatMax, 1);
+    this.understeer = clamp((demand - 0.95) / 0.3, 0, 1);
+
     // Longitudinal
     const heading = v3.add(v3.scale(f.fwd, Math.cos(this.psi)), v3.scale(f.right, Math.sin(this.psi)));
     let aLong = -G * heading[1];
@@ -190,7 +205,10 @@ export class Car {
     const aTyre = clamp(aTyreReq, -hold, hold);
     const excess = aTyreReq - aTyre;
 
-    this.slip = Math.min(1, Math.abs(excess) / Math.max(aLatMax, 1));
+    // How far past what the tyres can hold the car is -- whether that shows up
+    // as the back stepping out or as the front simply not turning.
+    this.slip = Math.min(1, Math.max(
+      Math.abs(excess) / Math.max(aLatMax, 1), this.understeer));
     const omegaEff = absV > 0.8 ? (aTyre - gravLat) / this.v : 0;
 
     let dpsi = omegaEff - this.v * f.kRight;
