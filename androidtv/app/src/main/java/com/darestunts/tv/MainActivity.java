@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.SparseArray;
 import android.view.KeyEvent;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -75,6 +76,21 @@ public class MainActivity extends Activity {
         TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_SELECT, "Escape");
     }
 
+    /**
+     * The one thing the page cannot do for itself. A television has no window to
+     * close and no way back to the launcher from inside a WebView, so the home
+     * screen's "Sair" comes back through here. Exposing an object to JavaScript
+     * is only as safe as what the WebView loads, and this one loads nothing but
+     * the assets inside the APK: there is no network permission and no way for
+     * anything else to reach it.
+     */
+    private class Shell {
+        @JavascriptInterface
+        public void exit() {
+            runOnUiThread(MainActivity.this::finishAndRemoveTask);
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +127,7 @@ public class MainActivity extends Activity {
             }
         });
         webView.setWebChromeClient(new WebChromeClient());
+        webView.addJavascriptInterface(new Shell(), "DareStuntsShell");
 
         // With no touchscreen, nothing claims input focus by itself; being
         // explicit is what makes the remote work at all.

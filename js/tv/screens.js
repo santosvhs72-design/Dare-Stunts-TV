@@ -51,6 +51,7 @@ export function homeScreen(app) {
     { id: 'build', label: 'Construir pista', hint: 'editor com comando' },
     { id: 'sound', label: 'Som', hint: '' },
     { id: 'pad', label: 'Comando', hint: 'ver o que o jogo recebe' },
+    { id: 'quit', label: 'Sair', hint: 'fechar a aplicação' },
   ];
   let i = 0;
 
@@ -83,6 +84,12 @@ export function homeScreen(app) {
         if (id === 'play') app.push(carScreen(app));
         else if (id === 'build') app.openEditor(null);
         else if (id === 'pad') app.push(padScreen(app));
+        else if (id === 'quit') app.push(confirmModal({
+          title: 'Fechar o Dare Stunts?',
+          text: 'Voltas ao ecrã inicial da televisão. Os recordes e as pistas ficam guardados.',
+          yes: 'Fechar', no: 'Ficar',
+          onYes: () => app.exit(), onNo: () => app.pop(),
+        }));
         else { app.sound.setMuted(!app.sound.muted); paint(); }
       }
     },

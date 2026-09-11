@@ -44,19 +44,38 @@ export class TvInput {
     this.padConnected = false;
 
     this._last = {};        // action -> timestamp of last accepted fire
+    this._downKeys = new Set();
     this._prevPad = new Set();
     this._dir = null;
     this._dirAt = 0;
     this._dirFired = 0;
 
+    // A held key repeats: Android sends ACTION_DOWN again and again while a
+    // button is down and the wrapper forwards every one. A repeat is not a new
+    // press, and acting on it means whatever appears while a button is held is
+    // activated by that same press -- finish a lap with the throttle down and
+    // the results menu takes the press that was still accelerating. Directions
+    // are the exception, because holding one to run down a list is how a list is
+    // meant to be used. The polled gamepad path has always worked this way (see
+    // _prevPad below); this brings keys into line with it.
     addEventListener('keydown', e => {
       const a = KEY_ACTION[keyName(e)];
       if (!a) return;
       // Arrows scroll and Space/Enter activate things; this interface does all
       // of that itself, so the browser must keep its hands off.
       e.preventDefault();
+      if (!DIRS.includes(a)) {
+        if (this._downKeys.has(a)) return;
+        this._downKeys.add(a);
+      }
       if (this.enabled) this._fire(a);
     });
+    addEventListener('keyup', e => {
+      const a = KEY_ACTION[keyName(e)];
+      if (a) this._downKeys.delete(a);
+    });
+    // Focus moving away mid-press would otherwise leave a button held for ever.
+    addEventListener('blur', () => this._downKeys.clear());
 
     setInterval(() => this._poll(), 50);
   }
@@ -65,7 +84,7 @@ export class TvInput {
 
   setEnabled(on) {
     this.enabled = on;
-    if (!on) { this._prevPad.clear(); this._dir = null; }
+    if (!on) { this._prevPad.clear(); this._downKeys.clear(); this._dir = null; }
   }
 
   _poll() {

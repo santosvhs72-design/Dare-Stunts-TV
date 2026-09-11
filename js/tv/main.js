@@ -71,6 +71,12 @@ const app = {
     app.push(v);
   },
   setCar(c) { app.car = c; game.car0 = c; saveCar(c.id); },
+  // Closing is the one thing the page cannot do for itself: a television has no
+  // window to close, so the wrapper has to be asked (see Shell in MainActivity).
+  exit() {
+    if (window.DareStuntsShell && window.DareStuntsShell.exit) window.DareStuntsShell.exit();
+    else window.close();        // in a browser there is nothing to close
+  },
   startRace(def) { startRace(def); },
   openEditor(def) { app.push(editorScreen(app, def)); },
   paintPad() {

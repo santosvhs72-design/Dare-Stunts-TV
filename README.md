@@ -68,6 +68,7 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Pausa | Voltar / Menu | Start |
 | Ligar/desligar o ghost | menu de pausa | Y, ou o menu de pausa |
 | Ver o que o comando envia | menu inicial &rarr; Comando | idem |
+| Fechar a aplicação | menu inicial &rarr; Sair, ou Voltar | idem |
 
 A conduzir: RT acelera, LT trava, stick esquerdo vira, A é travão de mão.
 Num teclado, `G` liga e desliga o ghost sem parar a volta.
