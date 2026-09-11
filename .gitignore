@@ -1,0 +1,8 @@
+# Build output and machine-specific paths: all regenerated.
+androidtv/build/
+androidtv/app/build/
+androidtv/.gradle/
+androidtv/local.properties
+# Copied from the repo root by androidtv/sync-assets.sh, never edited in place.
+androidtv/app/src/main/assets/
+*.apk

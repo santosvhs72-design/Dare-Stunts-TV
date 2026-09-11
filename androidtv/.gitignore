@@ -1,0 +1,7 @@
+# Build output and machine-specific paths: everything here is regenerated.
+/build/
+/app/build/
+/.gradle/
+/local.properties
+# Synced from the parent folder by sync-assets.sh, never edited here.
+/app/src/main/assets/
