@@ -18,7 +18,7 @@ export const CARS = [
     // these, the way a box in the world derives its faces. The colours are the
     // world's own -- kerb red, and a grey warmed towards it.
     theme: {
-      dash: '#9a8078', body: '#9c4a41',
+      dash: '#4a3d39', body: '#9c4a41', rim: '#6b5d57',
       accent: '#c4423b', accent2: '#ffb43a',
       dashScale: 0.93, wheelScale: 1.04,
     },
@@ -35,7 +35,7 @@ export const CARS = [
     },
     img: 'img/corsario.png',
     theme: {
-      dash: '#8b929c', body: '#a8843c',
+      dash: '#3e444e', body: '#a8843c', rim: '#5b626d',
       accent: '#ffb43a', accent2: '#aac6e2',
       dashScale: 1, wheelScale: 1,
     },
@@ -52,7 +52,7 @@ export const CARS = [
     },
     img: 'img/tenaz.png',
     theme: {
-      dash: '#7f9689', body: '#4f8a68',
+      dash: '#38443e', body: '#4f8a68', rim: '#55655c',
       accent: '#4fbf7a', accent2: '#aac6e2',
       dashScale: 1.08, wheelScale: 1.12,
     },

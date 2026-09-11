@@ -6,7 +6,7 @@
 // each choice gets its own screen with a single row to walk along.
 import { CARS, carById } from '../game/cars.js';
 import { TRACKS } from '../world/tracks.js';
-import { getBest } from '../game/game.js';
+import { getBest, clearRecord } from '../game/game.js';
 import { formatTime } from '../game/hud.js';
 import { loadCustom, deleteCustom } from '../world/customtracks.js';
 import { walkTrack } from '../world/track.js';
@@ -191,11 +191,27 @@ export function trackScreen(app) {
     }));
   };
 
+  // Records are worth a confirmation: the time and the ghost go together, and
+  // the lap that set them is not coming back.
+  const askClear = t => {
+    const best = getBest(t.id);
+    app.push(confirmModal({
+      title: `Limpar o recorde de ${t.name}?`,
+      text: `Apaga o tempo de ${formatTime(best && best.ms)} e o fantasma dessa volta.`,
+      yes: 'Limpar', no: 'Cancelar',
+      onYes: () => { clearRecord(t.id); app.pop(); refresh(); },
+      onNo: () => app.pop(),
+    }));
+  };
+
   // A television remote has no X or Y button, so running, editing and deleting
   // all have to be reachable from the D-pad alone.
   const trackMenu = () => {
     const t = list[i];
     const items = [{ label: `Correr em ${t.name}`, run: () => { app.pop(); app.startRace(t); } }];
+    if (getBest(t.id)) {
+      items.push({ label: 'Limpar o recorde', run: () => { app.pop(); askClear(t); } });
+    }
     if (t.custom) {
       items.push({ label: 'Editar esta pista', run: () => { app.pop(); app.openEditor(t); } });
       items.push({ label: 'Apagar esta pista', run: () => { app.pop(); askDelete(); } });

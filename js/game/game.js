@@ -22,6 +22,15 @@ export function getBest(id) {
   try { return JSON.parse(v); } catch { return null; }
 }
 
+// Wiping a record means both halves of it: the time and the lap that set it.
+// Leaving the ghost behind would put a car on the road with nothing to compare
+// it against, and loadGhostFor would then keep it forever -- it only discards a
+// ghost that is *slower* than a stored record, and there would be none.
+export function clearRecord(id) {
+  try { localStorage.removeItem(bestKey(id)); } catch { /* ignore */ }
+  clearGhost(id);
+}
+
 function saveBest(id, ms, car) {
   try {
     localStorage.setItem(bestKey(id), JSON.stringify({ ms: Math.round(ms), car }));

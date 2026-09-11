@@ -17,6 +17,8 @@ import { walkTrack, buildTrack } from '../world/track.js';
 import { testDrive } from '../editor/autopilot.js';
 import { trackDefFrom, saveCustom } from '../world/customtracks.js';
 import { node, esc, confirmModal } from './screens.js';
+import { getBest, clearRecord } from '../game/game.js';
+import { formatTime } from '../game/hud.js';
 import { textEntry } from './keyboard.js';
 import { drawTrackMap } from './map.js';
 
@@ -322,6 +324,18 @@ export function editorScreen(app, def) {
         })); } },
       { label: 'Sair do construtor', run: () => { app.pop(); exit(); } },
     ];
+    // Only once the track has been saved is there a record to speak of, and
+    // changing the layout is exactly when the old time stops meaning anything.
+    const best = editingId && getBest(editingId);
+    if (best) {
+      items.splice(4, 0, { label: 'Limpar o recorde', run: () => { app.pop(); app.push(confirmModal({
+        title: 'Limpar o recorde?',
+        text: `Apaga o tempo de ${formatTime(best.ms)} e o fantasma dessa volta.`,
+        yes: 'Limpar', no: 'Cancelar',
+        onYes: () => { clearRecord(editingId); app.pop(); message('Recorde limpo.'); },
+        onNo: () => app.pop(),
+      })); } });
+    }
     let i = 0;
     const m = node(`<div class="modal"><div class="panel">
       <h2>Pista</h2><div class="menu" id="mi"></div>
