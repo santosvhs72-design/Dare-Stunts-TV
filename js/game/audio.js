@@ -1,6 +1,23 @@
 import { clamp } from '../core/math.js';
+import { SLIP_WARN } from './car.js';
 
 const MUTE_KEY = 'velocidadecega.mute';
+
+// The moment grip goes.
+//
+// The tyre scrub layer below rises smoothly with slip, so a big slide is loud
+// and a small one is almost nothing -- which says how far gone the car is but
+// never says when it started, and the start is the part a driver has to react
+// to. So the crossing gets a chirp of its own, on the same threshold that turns
+// the speedo red (SLIP_WARN).
+//
+// It needs hysteresis and a gap: a car balanced on the limit crosses the
+// threshold many times a second, and a cue that machine-guns is noise. It also
+// needs speed, because on a banked or looping surface a stationary car reads as
+// sliding -- gravity pulls it sideways and there is no cornering to speak of.
+const SLIP_OFF = 0.18;   // slip must fall back below this before it can fire again
+const SLIP_GAP = 0.45;   // seconds between chirps
+const SLIP_KMH = 25;     // below this it is not a corner, it is a car standing still
 
 const read = () => { try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; } };
 const write = m => { try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* private mode */ } };
@@ -12,6 +29,8 @@ export class Sound {
     this.muted = read();
     this.wallSeen = 0;
     this.landSeen = 0;
+    this.slipping = false;
+    this.slipAt = -1e9;
   }
 
   // Browsers only allow an AudioContext to start from a user gesture.
@@ -191,6 +210,35 @@ export class Sound {
     this.thump(0.2, 260, 1.1, 0.3 * v);
   }
 
+  // A tyre letting go: a scrub that rises as the slide breaks away and falls
+  // back as it settles. Noise through a tight bandpass is what a squeal is; the
+  // tone under it only gives the chirp a centre a television speaker can carry,
+  // since most of them have nothing below a few hundred hertz.
+  slipChirp(v) {
+    if (!this.ready) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const dur = 0.24 + v * 0.22;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 8;
+    bp.frequency.setValueAtTime(1150, t);
+    bp.frequency.exponentialRampToValueAtTime(2100, t + dur * 0.35);
+    bp.frequency.exponentialRampToValueAtTime(1500, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.13 + 0.15 * v, t + 0.035);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp);
+    bp.connect(g);
+    g.connect(this.master);
+    src.start(t);
+    src.stop(t + dur + 0.05);
+    this.tone(720, dur * 0.75, { type: 'triangle', vol: 0.05 + 0.05 * v, to: 940 });
+  }
+
   // Per-frame continuous layers.
   update(st) {
     if (!this.ready) return;
@@ -210,6 +258,17 @@ export class Sound {
 
     this.squealGain.gain.setTargetAtTime(on * 0.11 * clamp(st.squeal, 0, 1), t, 0.04);
     if (this.squealBp) this.squealBp.frequency.setTargetAtTime(1500 + sp * 900, t, 0.1);
+
+    // Rising edge of a slide. st.slip is already zero unless the car is on the
+    // road, so a jump and the moment after a crash cannot chirp.
+    const slip = clamp(st.slip || 0, 0, 1);
+    if (!st.active || slip < SLIP_OFF || st.speedKmh < SLIP_KMH) {
+      this.slipping = false;
+    } else if (slip > SLIP_WARN && !this.slipping && t - this.slipAt > SLIP_GAP) {
+      this.slipping = true;
+      this.slipAt = t;
+      this.slipChirp(clamp((slip - SLIP_WARN) / (1 - SLIP_WARN), 0, 1));
+    }
   }
 
   // Fires the one-shots the car has queued since the last call.

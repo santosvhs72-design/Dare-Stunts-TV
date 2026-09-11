@@ -20,7 +20,11 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   autopiloto: não deixa guardar uma pista que o carro escolhido não consiga
   terminar.
 - **Ghost do recordista**: bate o recorde e essa volta passa a correr contigo na
-  vez seguinte, com o intervalo em segundos no HUD.
+  vez seguinte, com o intervalo em segundos no HUD. Liga-se e desliga-se a meio
+  da volta, e a escolha fica guardada.
+- **Cockpit ao estilo de 1990**: painéis planos, mostradores redondos com
+  ponteiro e números impressos, e nada de gradientes — porque o Stunts também
+  não os tinha.
 
 ## Compilar
 
@@ -62,8 +66,10 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Voltar | Voltar | B |
 | Opções do item | ↓ | ↓ |
 | Pausa | Voltar / Menu | Start |
+| Ligar/desligar o ghost | menu de pausa | Y, ou o menu de pausa |
 
 A conduzir: RT acelera, LT trava, stick esquerdo vira, A é travão de mão.
+Num teclado, `G` liga e desliga o ghost sem parar a volta.
 
 ## Como está feito
 

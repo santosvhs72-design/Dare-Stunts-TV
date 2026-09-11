@@ -32,6 +32,11 @@ export const DEFAULT_PHYS = {
 
 export const MODE = { ROAD: 0, AIR: 1, CRASHED: 2 };
 
+// Slip at which the car is audibly and visibly away from you: the speedo turns
+// red, the grip lamp lights and the tyres chirp. One number, so the warning a
+// driver sees and the one they hear can never disagree.
+export const SLIP_WARN = 0.35;
+
 // Speed at which each gear tops out. Revs sweep up and drop back on each shift,
 // which is what makes the engine note sound like a car rather than a siren.
 // Scaled by the car's top speed so every car still pulls 6th at its own maximum.

@@ -267,6 +267,9 @@ export class Game {
         throttle: this.input.throttle,
         speedKmh: speed,
         squeal: Math.max(car.slip - 0.12, car.onCurb ? 0.3 : 0),
+        // Only the road can lose grip: airborne, car.slip still holds whatever
+        // it read at take-off, and the tyres are not touching anything.
+        slip: car.mode === MODE.ROAD ? car.slip : 0,
       });
       this.sound.follow(car);
     }

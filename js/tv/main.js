@@ -9,6 +9,7 @@ import { Input } from '../game/input.js';
 import { Sound } from '../game/audio.js';
 import { formatTime } from '../game/hud.js';
 import { carById, loadCar, saveCar } from '../game/cars.js';
+import { ghostShown, setGhostShown } from '../game/ghost.js';
 import { keyValue } from '../ui/keys.js';
 import { TvInput } from './input.js';
 import { homeScreen, node, esc } from './screens.js';
@@ -88,7 +89,12 @@ let racing = false;
 // exists only so the menu and back buttons still have somewhere to land.
 const raceView = () => ({
   el: null,
-  key(a) { if (a === 'menu' || a === 'back') pauseRace(); },
+  key(a) {
+    if (a === 'menu' || a === 'back') pauseRace();
+    // G on a keyboard, Y on a pad. A remote has neither, so the pause menu
+    // carries the same switch -- a shortcut is never the only way in.
+    else if (a === 'ghost' || a === 'y') toggleGhost();
+  },
 });
 
 function startRace(def) {
@@ -114,6 +120,19 @@ function leaveRace() {
   ui.classList.remove('hidden');
 }
 
+// Racing against a ghost is not always what you want: on a track you are still
+// learning it is another car in the way, and the gap readout is a running
+// commentary on losing. So it goes off and on mid-lap, and the choice sticks.
+function toggleGhost() {
+  if (!racing) return;
+  const on = !game.showGhost;
+  game.showGhost = on;
+  setGhostShown(on);
+  game.setMessage(on ? 'FANTASMA LIGADO' : 'FANTASMA DESLIGADO',
+    on && !game.ghost ? 'ainda não há volta guardada nesta pista' : '',
+    '#7fd0ff', 1.2);
+}
+
 function pauseRace() {
   if (!racing || game.state === STATE.PAUSED) return;
   game.pause();
@@ -122,12 +141,16 @@ function pauseRace() {
 }
 
 function pauseModal() {
+  let view;
   const items = [
     { label: 'Continuar', run: () => { app.pop(); ui.classList.add('hidden'); game.resume(); } },
+    { label: () => `Fantasma: ${game.showGhost ? 'ligado' : 'desligado'}`,
+      run: () => { toggleGhost(); view.paint(); } },
     { label: 'Reiniciar', run: () => { app.pop(); ui.classList.add('hidden'); game.restart(); } },
     { label: 'Escolher pista', run: () => { app.pop(); app.pop(); leaveRace(); } },
   ];
-  return listModal('Pausa', items, () => items[0].run());
+  view = listModal('Pausa', items, () => items[0].run());
+  return view;
 }
 
 function listModal(title, items, onBack) {
@@ -137,13 +160,16 @@ function listModal(title, items, onBack) {
     <div class="legend"><span class="a"><em>A</em>escolher</span>
       <span class="pad" id="padStatus"></span></div>
   </div></div>`);
+  // A label may be a function, for an item that shows the state it switches.
   const paint = () => {
     el.querySelector('#mi').innerHTML = items.map((it, n) =>
-      `<div class="item${n === i ? ' on' : ''}">${esc(it.label)}</div>`).join('');
+      `<div class="item${n === i ? ' on' : ''}">${esc(
+        typeof it.label === 'function' ? it.label() : it.label)}</div>`).join('');
   };
   paint();
   return {
     el,
+    paint,
     key(a) {
       if (a === 'up') { i = (i - 1 + items.length) % items.length; paint(); }
       else if (a === 'down') { i = (i + 1) % items.length; paint(); }
@@ -219,6 +245,6 @@ setInterval(() => app.paintPad(), 600);
 
 game.car0 = app.car;   // the Game drives whichever car the picker last confirmed
 // The ghost is a TV-version feature; the desktop build records laps but never
-// draws them, so it stays exactly as it was.
-game.showGhost = true;
+// draws them, so it stays exactly as it was. On by default, until turned off.
+game.showGhost = ghostShown();
 app.push(homeScreen(app));

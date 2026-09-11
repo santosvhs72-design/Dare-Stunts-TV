@@ -26,7 +26,7 @@ const KEY_ACTION = {
   ArrowRight: 'right', KeyD: 'right',
   Enter: 'ok', Space: 'ok',
   Escape: 'back', Backspace: 'back',
-  KeyX: 'x', KeyY: 'y', KeyQ: 'l', KeyE: 'r', KeyM: 'menu',
+  KeyX: 'x', KeyY: 'y', KeyQ: 'l', KeyE: 'r', KeyM: 'menu', KeyG: 'ghost',
 };
 
 // Standard gamepad mapping. The face buttons keep their console meaning so the

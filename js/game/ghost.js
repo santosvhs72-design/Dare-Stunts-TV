@@ -97,6 +97,19 @@ export function clearGhost(trackId) {
   try { localStorage.removeItem(KEY(trackId)); } catch { /* ignore */ }
 }
 
+// Whether the ghost is drawn at all, remembered between races. Deliberately not
+// under KEY(): that namespace is one entry per track id, and a track called
+// "show" would quietly overwrite the setting.
+const SHOWN_KEY = 'velocidadecega.ghostvisible';
+
+export function ghostShown() {
+  try { return localStorage.getItem(SHOWN_KEY) !== '0'; } catch { return true; }
+}
+
+export function setGhostShown(on) {
+  try { localStorage.setItem(SHOWN_KEY, on ? '1' : '0'); } catch { /* private mode */ }
+}
+
 /* -------------------------------------------------------------- playback -- */
 
 export class GhostPlayer {

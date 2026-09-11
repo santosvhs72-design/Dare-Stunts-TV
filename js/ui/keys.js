@@ -7,7 +7,7 @@
 const BY_KEYCODE = {
   13: 'Enter', 27: 'Escape', 32: 'Space',
   37: 'ArrowLeft', 38: 'ArrowUp', 39: 'ArrowRight', 40: 'ArrowDown',
-  65: 'KeyA', 68: 'KeyD', 77: 'KeyM', 82: 'KeyR', 83: 'KeyS', 87: 'KeyW',
+  65: 'KeyA', 68: 'KeyD', 71: 'KeyG', 77: 'KeyM', 82: 'KeyR', 83: 'KeyS', 87: 'KeyW',
 };
 
 export function keyName(e) {

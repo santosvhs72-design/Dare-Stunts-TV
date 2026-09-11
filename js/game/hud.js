@@ -1,3 +1,5 @@
+import { SLIP_WARN } from './car.js';
+
 export function formatTime(ms) {
   if (ms == null) return '--:--.--';
   const t = Math.max(0, ms);
@@ -7,20 +9,31 @@ export function formatTime(ms) {
   return `${m}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
 }
 
-// Interior defaults. Each car overrides the trim, accents and proportions via
-// st.theme, so the three cockpits feel like different cars.
+// The cockpit, drawn the way 1990 drew one.
+//
+// Stunts ran in 320x200 with a fixed palette and no alpha channel, so an
+// interior was a handful of flat panels with hard edges, round instruments with
+// printed numbers and a real needle, and dithering wherever a surface had to
+// sit between two colours. None of the modern crutches -- gradients, gloss,
+// drop shadows, blur -- existed, and leaving them out is most of what makes a
+// cockpit read as that kind of car instead of a phone racing game.
+//
+// Interior defaults. Each car overrides the palette and a couple of proportions
+// via st.theme, so the three cockpits feel like different cars.
 const BASE = {
+  dash: '#2e3a6e', dashLite: '#4a5796', dashDark: '#1a2247',
+  body: '#c9a43a', bodyDark: '#8a6f1f',
+  panel: '#0b0d14', panelLite: '#2b3246',
   pillar: '#171b21', pillarEdge: '#333b46', roof: '#0e1116',
-  dashHi: '#232833', dashMid: '#14181f', dashLow: '#070910',
-  seam: '#4a535f', screen: '#0a0d13', screenEdge: '#29313d',
-  rim: '#1c2128', rimHi: '#39424e', rimLow: '#0d1015',
-  accent: '#ffb43a', accent2: '#7fd0ff', ambient: '255,180,58',
+  rim: '#31363f', rimHi: '#565d69', rimLow: '#15181e',
+  face: '#06080d', bezel: '#b9bec9', needle: '#ef4a3c',
+  accent: '#ffb43a', accent2: '#7fd0ff',
   dashScale: 1, wheelScale: 1,
 };
 
 const C = {
-  amber: '#ffb43a', green: '#5fd894', red: '#ff7a7a',
-  text: '#eef3f9', dim: 'rgba(198,214,236,.52)',
+  amber: '#ffb43a', green: '#5fd894', red: '#ff5a4e',
+  text: '#eef3f9', dim: 'rgba(198,214,236,.55)', print: '#cfd8e6',
 };
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -30,6 +43,7 @@ export class Hud {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this._dither = new Map();
   }
 
   resize() {
@@ -45,20 +59,46 @@ export class Hud {
     this.h = this.canvas.clientHeight;
   }
 
-  // One place decides the geometry, so the vents, cluster and wheel can never
-  // drift into each other.
+  // A 2x2 checkerboard of two flat colours. With no alpha channel, a surface
+  // halfway between two colours was drawn by mixing their pixels, and that
+  // chequer is a large part of why the era looks the way it does. Cached,
+  // because a pattern is rebuilt from a canvas each time otherwise.
+  dither(a, b) {
+    const key = a + b;
+    let p = this._dither.get(key);
+    if (p) return p;
+    const c = document.createElement('canvas');
+    c.width = c.height = 2;
+    const x = c.getContext('2d');
+    x.fillStyle = a; x.fillRect(0, 0, 2, 2);
+    x.fillStyle = b; x.fillRect(0, 0, 1, 1); x.fillRect(1, 1, 1, 1);
+    p = this.ctx.createPattern(c, 'repeat');
+    this._dither.set(key, p);
+    return p;
+  }
+
+  // One place decides the geometry, so the bonnet, instruments and wheel can
+  // never drift into each other.
   layout(w, h, t) {
-    const dashH = Math.min(196, h * 0.29) * t.dashScale;
+    // A television is watched from across a room, so the dash takes close to a
+    // third of the screen: the instruments have to be readable from the sofa,
+    // and Stunts gave its cockpit about as much.
+    const dashH = Math.min(330, h * 0.32) * t.dashScale;
     const dashTop = h - dashH;
-    const cw = Math.min(660, w * 0.58);
-    const ch = dashH * 0.44;
+    const bonnetH = dashH * 0.21;
+    const sideR = dashH * 0.26;
     return {
-      dashH, dashTop, cw, ch,
-      cx: (w - cw) / 2,
-      cy: dashTop + dashH * 0.045,
-      wheelRx: dashH * 1.32 * t.wheelScale,
+      dashH, dashTop, bonnetH, bonnetTop: dashTop - bonnetH,
+      bigR: dashH * 0.38,
+      bigCy: dashTop + dashH * 0.46,
+      sideR,
+      // Far enough out to clear the wheel, but never off the edge of a narrow
+      // screen: the side dials are instruments, not decoration.
+      sideDx: Math.min(w * 0.5 - sideR * 1.5 - w * 0.035,
+                       Math.max(dashH * 1.18, w * 0.25)),
+      wheelRx: dashH * 1.28 * t.wheelScale,
       wheelRy: dashH * 0.82 * t.wheelScale,
-      wheelCy: h + dashH * 0.34 * t.wheelScale,
+      wheelCy: h + dashH * 0.44 * t.wheelScale,
     };
   }
 
@@ -71,8 +111,8 @@ export class Hud {
     const t = { ...BASE, ...(st.theme || {}) };
     const lay = this.layout(w, h, t);
 
-    this.drawGlass(ctx, w, h, lay.dashH);
-    this.drawFrame(ctx, w, h, lay.dashH, t);
+    this.drawFrame(ctx, w, h, lay, t);
+    this.drawBonnet(ctx, w, lay, t);
     this.drawDash(ctx, w, h, lay, t);
     this.drawCluster(ctx, w, h, lay, st, t);
     this.drawWheel(ctx, w, h, lay, st, t);
@@ -80,26 +120,17 @@ export class Hud {
     if (st.message) this.drawMessage(ctx, w, h, st);
   }
 
-  // Sun strip along the top of the screen plus a soft corner falloff.
-  drawGlass(ctx, w, h, dashH) {
-    const glass = h - dashH;
-    const tint = ctx.createLinearGradient(0, 0, 0, glass * 0.34);
-    tint.addColorStop(0, 'rgba(18,30,52,.62)');
-    tint.addColorStop(1, 'rgba(18,30,52,0)');
-    ctx.fillStyle = tint;
-    ctx.fillRect(0, 0, w, glass * 0.34);
+  // Straight pillars and a flat roof band: the frame is body panels, and body
+  // panels in this world are polygons.
+  drawFrame(ctx, w, h, lay, t) {
+    const glass = lay.bonnetTop;
+    const pw = Math.max(16, w * 0.03);
+    const roof = Math.max(10, h * 0.022);
 
-    const vig = ctx.createRadialGradient(w / 2, glass * 0.52, glass * 0.34, w / 2, glass * 0.52, glass * 1.05);
-    vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,0,0,.38)');
-    ctx.fillStyle = vig;
-    ctx.fillRect(0, 0, w, glass);
-  }
-
-  drawFrame(ctx, w, h, dashH, t) {
-    const glass = h - dashH;
-    const pw = Math.max(24, w * 0.042);
-    const roof = Math.max(12, h * 0.024);
+    ctx.fillStyle = t.roof;
+    ctx.fillRect(0, 0, w, roof);
+    ctx.fillStyle = this.dither(t.roof, t.pillar);
+    ctx.fillRect(0, roof, w, Math.max(3, roof * 0.35));
 
     for (const side of [-1, 1]) {
       const x = side < 0 ? 0 : w;
@@ -107,261 +138,370 @@ export class Hud {
       ctx.fillStyle = t.pillar;
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x + dir * pw * 0.62, 0);
-      ctx.quadraticCurveTo(x + dir * pw * 1.5, glass * 0.62, x + dir * pw * 1.28, glass);
+      ctx.lineTo(x + dir * pw * 0.55, 0);
+      ctx.lineTo(x + dir * pw * 1.25, glass);
       ctx.lineTo(x, glass);
       ctx.closePath();
       ctx.fill();
 
-      // Inner trim highlight, so the pillar reads as a moulded edge.
       ctx.strokeStyle = t.pillarEdge;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(x + dir * pw * 0.62, 0);
-      ctx.quadraticCurveTo(x + dir * pw * 1.5, glass * 0.62, x + dir * pw * 1.28, glass);
+      ctx.moveTo(x + dir * pw * 0.55, 0);
+      ctx.lineTo(x + dir * pw * 1.25, glass);
       ctx.stroke();
     }
-
-    const head = ctx.createLinearGradient(0, 0, 0, roof * 1.8);
-    head.addColorStop(0, t.roof);
-    head.addColorStop(1, 'rgba(14,17,22,0)');
-    ctx.fillStyle = head;
-    ctx.fillRect(0, 0, w, roof * 1.8);
-    ctx.fillStyle = t.roof;
-    ctx.fillRect(0, 0, w, roof);
-
-    // Rear-view mirror
-    const mw = Math.min(132, w * 0.13), mh = Math.max(20, mw * 0.28);
-    const mx = w / 2 - mw / 2, my = roof * 0.55;
-    ctx.fillStyle = '#1a1e25';
-    this.roundRect(ctx, mx, my, mw, mh, mh * 0.42);
-    ctx.fill();
-    const glassG = ctx.createLinearGradient(0, my, 0, my + mh);
-    glassG.addColorStop(0, 'rgba(120,150,190,.30)');
-    glassG.addColorStop(1, 'rgba(40,55,80,.16)');
-    ctx.fillStyle = glassG;
-    this.roundRect(ctx, mx + 3, my + 3, mw - 6, mh - 6, (mh - 6) * 0.4);
-    ctx.fill();
   }
 
-  dashCurve(ctx, w, y, dashH) {
-    ctx.beginPath();
-    ctx.moveTo(0, y + dashH * 0.14);
-    ctx.quadraticCurveTo(w / 2, y - dashH * 0.09, w, y + dashH * 0.14);
+  // The nose of the car, seen over the dash. Stunts always kept a band of
+  // bodywork in shot, and it is what places the driver behind the windscreen
+  // rather than floating above the road.
+  drawBonnet(ctx, w, lay, t) {
+    const { bonnetTop: y, bonnetH: bh } = lay;
+    ctx.fillStyle = t.body;
+    ctx.fillRect(0, y, w, bh);
+    ctx.fillStyle = this.dither(t.bodyDark, t.body);
+    ctx.fillRect(0, y, w, Math.max(4, bh * 0.28));
+    ctx.fillStyle = t.bodyDark;
+    ctx.fillRect(0, y, w, 2);
+
+    // Rivets along the shut line.
+    ctx.fillStyle = t.bodyDark;
+    const step = Math.max(24, w / 44);
+    const ry = Math.round(y + bh * 0.58);
+    for (let x = step * 0.5; x < w; x += step) ctx.fillRect(Math.round(x), ry, 3, 3);
   }
 
   drawDash(ctx, w, h, lay, t) {
-    const { dashH, cx, cw, cy, ch } = lay;
-    const y = h - dashH;
+    const { dashTop: y, dashH: dh } = lay;
+    ctx.fillStyle = t.dash;
+    ctx.fillRect(0, y, w, dh);
 
-    const g = ctx.createLinearGradient(0, y - dashH * 0.09, 0, h);
-    g.addColorStop(0, t.dashHi);
-    g.addColorStop(0.14, t.dashMid);
-    g.addColorStop(1, t.dashLow);
-    ctx.fillStyle = g;
-    this.dashCurve(ctx, w, y, dashH);
-    ctx.lineTo(w, h);
-    ctx.lineTo(0, h);
-    ctx.closePath();
-    ctx.fill();
+    // Top lip catching the light, then a chequer step down into the face.
+    const lip = Math.max(5, dh * 0.05);
+    ctx.fillStyle = t.dashLite;
+    ctx.fillRect(0, y, w, lip);
+    ctx.fillStyle = this.dither(t.dashLite, t.dash);
+    ctx.fillRect(0, y + lip, w, lip * 0.8);
 
-    // Ambient light strip: several widening passes instead of shadowBlur.
-    for (const [width, alpha] of [[7, 0.05], [4, 0.09], [2, 0.2], [1.1, 0.5]]) {
-      ctx.strokeStyle = `rgba(${t.ambient},${alpha})`;
-      ctx.lineWidth = width;
-      this.dashCurve(ctx, w, y, dashH);
-      ctx.stroke();
-    }
-
-    // Stitched seam below the top edge
-    ctx.strokeStyle = t.seam;
-    ctx.lineWidth = 1.4;
-    ctx.setLineDash([7, 6]);
-    ctx.beginPath();
-    ctx.moveTo(0, y + dashH * 0.28);
-    ctx.quadraticCurveTo(w / 2, y + dashH * 0.05, w, y + dashH * 0.28);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const vw = Math.min(190, (cx - w * 0.045) * 0.82);
-    if (vw > 60) {
-      this.vent(ctx, cx - 26 - vw, cy + ch * 0.18, vw, ch * 0.62);
-      this.vent(ctx, cx + cw + 26, cy + ch * 0.18, vw, ch * 0.62);
-    }
+    // Where the moulding turns under, the same trick reversed.
+    ctx.fillStyle = this.dither(t.dash, t.dashDark);
+    ctx.fillRect(0, h - dh * 0.15, w, dh * 0.06);
+    ctx.fillStyle = t.dashDark;
+    ctx.fillRect(0, h - dh * 0.09, w, dh * 0.09);
   }
 
-  // Slim horizontal air vent: fills the dash without competing with the dials.
-  vent(ctx, x, y, w, h) {
-    ctx.fillStyle = 'rgba(4,6,10,.55)';
-    this.roundRect(ctx, x, y, w, h, 7);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(140,175,215,.13)';
-    ctx.lineWidth = 1;
-    this.roundRect(ctx, x, y, w, h, 7);
-    ctx.stroke();
-
-    const slats = 4;
-    for (let i = 0; i < slats; i++) {
-      const sy = y + h * (i + 0.62) / (slats + 0.25);
-      ctx.strokeStyle = i % 2 ? 'rgba(150,175,205,.10)' : 'rgba(150,175,205,.17)';
-      ctx.lineWidth = Math.max(2, h * 0.09);
-      ctx.beginPath();
-      ctx.moveTo(x + 7, sy);
-      ctx.lineTo(x + w - 7, sy);
-      ctx.stroke();
-    }
+  // A panel let into the moulding: black face, hard bright edge on the top and
+  // left, dark on the bottom and right. Two rectangles and no blur, which is
+  // all a sunken panel ever was.
+  inset(ctx, x, y, w, h, t) {
+    ctx.fillStyle = t.panel;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = t.dashDark;
+    ctx.fillRect(x - 2, y - 2, w + 4, 2);
+    ctx.fillRect(x - 2, y - 2, 2, h + 4);
+    ctx.fillStyle = t.dashLite;
+    ctx.fillRect(x - 2, y + h, w + 4, 2);
+    ctx.fillRect(x + w, y - 2, 2, h + 4);
   }
 
   drawCluster(ctx, w, h, lay, st, t) {
-    const { cx, cy, cw, ch } = lay;
-    const r = ch * 0.36;
+    const { bigR, bigCy, sideR, sideDx } = lay;
+    const topKmh = st.topKmh || 240;
+    const slipping = st.slip > SLIP_WARN;
 
-    ctx.fillStyle = t.screen;
-    this.roundRect(ctx, cx, cy, cw, ch, 14);
-    ctx.fill();
+    // Speedometer, centred over the hub, where the wheel rim crosses its lower
+    // edge exactly as a real wheel hides the bottom of a real dial. Always eight
+    // divisions with a number on every second one: an odd count would leave the
+    // last mark unlabelled and the face lopsided.
+    const kmhTicks = 8;
+    const kmhStep = [10, 20, 25, 30, 40, 50, 60].find(v => v * kmhTicks >= topKmh) || 80;
+    this.gauge(ctx, w / 2, bigCy, bigR, st.speedKmh / (kmhStep * kmhTicks), t, {
+      ticks: kmhTicks, step: kmhStep, every: 2,
+      needle: slipping ? C.red : t.needle,
+    });
 
-    // Gloss sweep across the cluster glass
-    ctx.save();
-    this.roundRect(ctx, cx, cy, cw, ch, 14);
-    ctx.clip();
-    const gloss = ctx.createLinearGradient(cx, cy, cx + cw * 0.55, cy + ch);
-    gloss.addColorStop(0, 'rgba(255,255,255,.055)');
-    gloss.addColorStop(0.55, 'rgba(255,255,255,.012)');
-    gloss.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gloss;
-    ctx.fillRect(cx, cy, cw, ch);
-    ctx.restore();
+    // Tachometer on the left, with the gear in a window under the spindle.
+    const rpm = Math.max(0, Math.min(1, st.rpm));
+    this.gauge(ctx, w / 2 - sideDx, bigCy, sideR, rpm, t, {
+      ticks: 8, step: 1, every: 4, label: 'RPM x1000', labelDy: 0.72, redline: 0.82,
+      value: st.gear, valueDy: 0.44, valueCol: t.accent2,
+    });
 
-    ctx.strokeStyle = t.screenEdge;
-    ctx.lineWidth = 1.2;
-    this.roundRect(ctx, cx, cy, cw, ch, 14);
-    ctx.stroke();
+    // Distance covered, read like a fuel gauge: it is the one thing a driver
+    // wants at a glance that the top of the screen states in numbers.
+    this.gauge(ctx, w / 2 + sideDx, bigCy, sideR, st.progress, t, {
+      ticks: 4, marks: ['0', '', '1/2', '', '1'], label: 'PISTA', labelDy: 0.72,
+      needle: C.green,
+    });
 
-    const mid = cy + ch / 2;
-    const slipping = st.slip > 0.35;
-    this.dial(ctx, cx + cw * 0.19, mid, r, st.speedKmh / (st.topKmh || 240),
-              Math.round(st.speedKmh), 'km/h', slipping ? C.red : t.accent);
-    this.dial(ctx, cx + cw * 0.81, mid, r, st.rpm, st.gear, 'mudança', t.accent2);
-
-    // Pedal readouts between the dials
-    const bw = 9, gap = 17;
-    this.pedal(ctx, w / 2 - gap - bw, mid - r * 0.78, bw, r * 1.35, st.brake, C.red);
-    this.pedal(ctx, w / 2 + gap, mid - r * 0.78, bw, r * 1.35, st.throttle, C.green);
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = C.dim;
-    ctx.font = `600 10px ${FONT}`;
-    ctx.fillText('TRAV', w / 2 - gap - bw / 2, mid + r * 1.0);
-    ctx.fillText('ACEL', w / 2 + gap + bw / 2, mid + r * 1.0);
+    this.drawLeft(ctx, w, lay, st, t, slipping);
+    this.drawSwitches(ctx, w, lay, t, st);
   }
 
-  // Thin arc with a digital readout: no needle, modern instrument style.
-  dial(ctx, cx, cy, r, frac, value, label, col) {
-    frac = Math.max(0, Math.min(1, frac));
-    const a0 = Math.PI * 0.72, a1 = Math.PI * 2.28;
+  // Left panel: the speed in figures, and the round bulbs a cockpit of the era
+  // used for water and fuel. The number lives here rather than on the dial
+  // face, where it would have sat on top of the printed scale.
+  drawLeft(ctx, w, lay, st, t, slipping) {
+    const { dashTop, dashH, sideDx, sideR } = lay;
+    // Whatever the dials leave over, up to the width a panel should be. Below
+    // the point where the readout would be unreadable there is no panel at all.
+    const bw = Math.min(dashH * 1.15, w / 2 - sideDx - sideR * 1.35 - 26);
+    if (bw < 64) return;
+    const x = Math.max(12, w / 2 - sideDx - sideR * 1.3 - bw - 14);
+    const y = dashTop + dashH * 0.18;
+    const bh = dashH * 0.58;
+    this.inset(ctx, x, y, bw, bh, t);
 
-    ctx.lineWidth = Math.max(3, r * 0.13);
-    ctx.strokeStyle = 'rgba(255,255,255,.09)';
-    ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke();
+    const lamps = [
+      ['ACEL', st.throttle > 0.05, C.green],
+      ['TRAV', st.brake > 0.05, C.red],
+      ['ADER', slipping, C.amber],
+    ];
+    const r = Math.max(5, bh * 0.085);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    lamps.forEach(([label, on, col], i) => {
+      const ly = y + bh * (0.2 + i * 0.3);
+      ctx.fillStyle = on ? col : 'rgba(255,255,255,.09)';
+      ctx.beginPath(); ctx.arc(x + bw * 0.13, ly, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,.75)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x + bw * 0.13, ly, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = on ? C.text : C.dim;
+      ctx.font = `700 ${Math.round(bh * 0.135)}px ${FONT}`;
+      ctx.fillText(label, x + bw * 0.24, ly + 1);
+    });
 
-    ctx.strokeStyle = 'rgba(255,255,255,.16)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 10; i++) {
-      const a = a0 + (a1 - a0) * (i / 10);
-      const c = Math.cos(a), s = Math.sin(a);
+    // Speed in figures, in a window of its own.
+    const ww = bw * 0.44, wh = bh * 0.46;
+    const wx = x + bw - ww - bw * 0.05, wy = y + bh * 0.16;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(wx, wy, ww, wh);
+    ctx.strokeStyle = 'rgba(200,215,235,.34)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(wx + 1, wy + 1, ww - 2, wh - 2);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = slipping ? C.red : t.accent;
+    ctx.font = `700 ${Math.round(wh * 0.62)}px ${MONO}`;
+    ctx.fillText(String(Math.round(st.speedKmh)), wx + ww / 2, wy + wh * 0.54);
+    ctx.fillStyle = C.dim;
+    ctx.font = `700 ${Math.round(bh * 0.115)}px ${FONT}`;
+    ctx.fillText('KM/H', wx + ww / 2, wy + wh + bh * 0.12);
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // Switchgear: dead decoration, and the dash looks wrong without it. A 1990
+  // interior was never a clean surface.
+  drawSwitches(ctx, w, lay, t, st) {
+    const { dashTop, dashH, sideDx, sideR } = lay;
+    const bw = Math.min(dashH * 1.15, w / 2 - sideDx - sideR * 1.35 - 26);
+    if (bw < 64) return;
+    const x = Math.min(w - bw - 12, w / 2 + sideDx + sideR * 1.3 + 14);
+    const y = dashTop + dashH * 0.18;
+    const bh = dashH * 0.58;
+    this.inset(ctx, x, y, bw, bh, t);
+
+    // Three rocker switches, the middle one thrown.
+    const sw = bw * 0.17, sh = bh * 0.3;
+    for (let i = 0; i < 3; i++) {
+      const sx = x + bw * (0.09 + i * 0.22), sy = y + bh * 0.16;
+      ctx.fillStyle = '#20252e';
+      ctx.fillRect(sx, sy, sw, sh);
+      ctx.fillStyle = '#9aa4b4';
+      ctx.fillRect(sx + 2, i === 1 ? sy + 2 : sy + sh / 2, sw - 4, sh / 2 - 2);
+    }
+    // Two knobs.
+    for (let i = 0; i < 2; i++) {
+      const kx = x + bw * (0.72 + i * 0.17), ky = y + bh * 0.31;
+      const kr = bh * 0.13;
+      ctx.fillStyle = '#7e8797';
+      ctx.beginPath(); ctx.arc(kx, ky, kr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#0a0c11';
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(cx + c * r * 1.12, cy + s * r * 1.12);
-      ctx.lineTo(cx + c * r * (i % 5 === 0 ? 1.24 : 1.19), cy + s * r * (i % 5 === 0 ? 1.24 : 1.19));
+      ctx.moveTo(kx, ky);
+      ctx.lineTo(kx + Math.cos(-2.2 + i) * kr, ky + Math.sin(-2.2 + i) * kr);
       ctx.stroke();
     }
-
-    if (frac > 0.001) {
-      const end = a0 + (a1 - a0) * frac;
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = col;
-      ctx.lineWidth = Math.max(3, r * 0.13);
-      ctx.beginPath(); ctx.arc(cx, cy, r, a0, end); ctx.stroke();
-      ctx.lineCap = 'butt';
-
-      const dx = cx + Math.cos(end) * r, dy = cy + Math.sin(end) * r;
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.arc(dx, dy, r * 0.115, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.55)';
-      ctx.beginPath(); ctx.arc(dx, dy, r * 0.05, 0, Math.PI * 2); ctx.fill();
-    }
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = C.text;
-    ctx.font = `700 ${Math.round(r * 0.68)}px ${MONO}`;
-    ctx.fillText(value, cx, cy + r * 0.16);
-    ctx.fillStyle = C.dim;
-    ctx.font = `600 ${Math.round(r * 0.26)}px ${FONT}`;
-    ctx.fillText(label, cx, cy + r * 0.58);
+    // Pedal bars, the one readout worth having down here.
+    const py = y + bh * 0.66, ph = bh * 0.2;
+    this.bar(ctx, x + bw * 0.09, py, bw * 0.38, ph, st.brake, C.red);
+    this.bar(ctx, x + bw * 0.53, py, bw * 0.38, ph, st.throttle, C.green);
   }
 
   // Segmented bar, so it reads as an instrument rather than a progress meter.
-  pedal(ctx, x, y, w, h, v, col) {
-    const n = 9, seg = h / n, pad = 2.4;
+  bar(ctx, x, y, w, h, v, col) {
+    const n = 7, seg = w / n, pad = 2.4;
     const lit = Math.round(Math.max(0, Math.min(1, v)) * n);
     for (let i = 0; i < n; i++) {
-      ctx.fillStyle = i < lit ? col : 'rgba(255,255,255,.08)';
-      ctx.fillRect(x, y + h - (i + 1) * seg, w, seg - pad);
+      ctx.fillStyle = i < lit ? col : 'rgba(255,255,255,.10)';
+      ctx.fillRect(x + i * seg, y, seg - pad, h);
     }
   }
 
-  // Seen from the driver's seat the rim is a foreshortened ellipse, so the shape
-  // holds still and the grips travel along it to show the steering angle.
-  drawWheel(ctx, w, h, lay, st, t) {
-    const { dashH, wheelRx: rx, wheelRy: ry, wheelCy: cy } = lay;
-    const cx = w / 2;
-    const thick = Math.max(12, dashH * 0.095);
-    const turn = st.steer * 0.85;
+  // A round instrument: chrome bezel, flat black face, printed numbers, a
+  // straight needle. Arcs and polygons only -- there is not a gradient anywhere
+  // in it, which is exactly why it reads as stamped metal rather than glass.
+  gauge(ctx, cx, cy, r, frac, t, o = {}) {
+    const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25;
+    const f = Math.max(0, Math.min(1, frac || 0));
+    const ang = a0 + (a1 - a0) * f;
 
-    ctx.save();
-    ctx.lineWidth = thick;
-    ctx.strokeStyle = t.rim;
-    ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = t.bezel;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.17, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1d23';
+    ctx.beginPath(); ctx.arc(cx, cy, r * 1.06, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = o.face || t.face;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
 
-    ctx.lineWidth = thick * 0.30;
-    ctx.strokeStyle = t.rimHi;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry - thick * 0.34, 0, Math.PI * 1.12, Math.PI * 1.88);
-    ctx.stroke();
-
-    ctx.lineWidth = thick * 0.22;
-    ctx.strokeStyle = t.rimLow;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry + thick * 0.32, 0, Math.PI * 1.18, Math.PI * 1.82);
-    ctx.stroke();
-
-    const at = a => [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry];
-    const top = -Math.PI / 2 + turn;
-
-    // Centre marker
-    ctx.lineWidth = thick * 0.86;
-    ctx.strokeStyle = t.accent;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rx, ry, 0, top - 0.055, top + 0.055);
-    ctx.stroke();
-
-    // Thumb grips
-    ctx.strokeStyle = t.rimHi;
-    ctx.lineWidth = thick * 1.22;
-    for (const off of [-0.62, 0.62]) {
+    if (o.redline != null) {
+      ctx.strokeStyle = C.red;
+      ctx.lineWidth = Math.max(3, r * 0.08);
       ctx.beginPath();
-      ctx.ellipse(cx, cy, rx, ry, 0, top + off - 0.15, top + off + 0.15);
+      ctx.arc(cx, cy, r * 0.88, a0 + (a1 - a0) * o.redline, a1);
       ctx.stroke();
     }
 
-    // Spokes reaching down to the hub below the frame
+    const n = o.ticks || 8;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= n; i++) {
+      const a = a0 + (a1 - a0) * (i / n);
+      const c = Math.cos(a), s = Math.sin(a);
+      ctx.strokeStyle = C.print;
+      ctx.lineWidth = Math.max(1.6, r * 0.055);
+      ctx.beginPath();
+      ctx.moveTo(cx + c * r * 0.97, cy + s * r * 0.97);
+      ctx.lineTo(cx + c * r * 0.80, cy + s * r * 0.80);
+      ctx.stroke();
+
+      if (i < n) {   // minor tick between each pair
+        const am = a0 + (a1 - a0) * ((i + 0.5) / n);
+        ctx.lineWidth = Math.max(1, r * 0.03);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(am) * r * 0.97, cy + Math.sin(am) * r * 0.97);
+        ctx.lineTo(cx + Math.cos(am) * r * 0.88, cy + Math.sin(am) * r * 0.88);
+        ctx.stroke();
+      }
+
+      // A dial this size cannot print every number legibly, so a face with many
+      // ticks prints every other one and lets the ticks carry the rest.
+      const skip = i % (o.every || 1) !== 0;
+      const mark = skip ? null
+        : (o.marks ? o.marks[i] : (o.step != null ? String(i * o.step) : null));
+      if (mark) {
+        ctx.fillStyle = C.print;
+        ctx.font = `700 ${Math.round(r * 0.22)}px ${MONO}`;
+        ctx.fillText(mark, cx + c * r * 0.59, cy + s * r * 0.59);
+      }
+    }
+
+    if (o.label) {
+      ctx.fillStyle = C.dim;
+      ctx.font = `700 ${Math.round(r * 0.17)}px ${FONT}`;
+      ctx.fillText(o.label, cx, cy + r * (o.labelDy || 0.66));
+    }
+
+    if (o.value != null) {
+      const fs = Math.round(r * 0.31);
+      const vy = cy + r * (o.valueDy || 0.42);
+      ctx.font = `700 ${fs}px ${MONO}`;
+      const bw = Math.max(fs * 1.6, ctx.measureText(o.value).width + fs * 0.7);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(cx - bw / 2, vy - fs * 0.68, bw, fs * 1.32);
+      ctx.strokeStyle = 'rgba(200,215,235,.35)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(cx - bw / 2, vy - fs * 0.68, bw, fs * 1.32);
+      ctx.fillStyle = o.valueCol || C.text;
+      ctx.fillText(o.value, cx, vy);
+    }
+
+    // Needle: a long spike one way, a stub counterweight the other.
+    const c = Math.cos(ang), s = Math.sin(ang);
+    const hub = r * 0.075;
+    ctx.fillStyle = o.needle || t.needle;
+    ctx.beginPath();
+    ctx.moveTo(cx + c * r * 0.93, cy + s * r * 0.93);
+    ctx.lineTo(cx - s * hub, cy + c * hub);
+    ctx.lineTo(cx - c * r * 0.16, cy - s * r * 0.16);
+    ctx.lineTo(cx + s * hub, cy - c * hub);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#d8dee8';
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.09, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2a2f38';
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.04, 0, Math.PI * 2); ctx.fill();
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // Seen from the driver's seat the rim is a foreshortened ellipse. It turns
+  // with the lock, and it passes in front of the instruments, because that is
+  // where a steering wheel is.
+  drawWheel(ctx, w, h, lay, st, t) {
+    const { dashH, wheelRx: rx, wheelRy: ry, wheelCy: cy } = lay;
+    const cx = w / 2;
+    const thick = Math.max(16, dashH * 0.135);
+    const turn = st.steer * 0.85;
+    const at = a => [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry];
+    const top = -Math.PI / 2 + turn;
+
+    ctx.save();
+
+    // Spokes first, so the rim covers where they meet it.
     ctx.strokeStyle = t.rim;
-    ctx.lineWidth = thick * 0.7;
+    ctx.lineWidth = thick * 0.42;
     for (const off of [-1.5, 1.5]) {
       const [px, py] = at(top + off);
       ctx.beginPath();
       ctx.moveTo(px, py);
-      ctx.lineTo(cx + (px - cx) * 0.18, cy);
+      ctx.lineTo(cx + (px - cx) * 0.10, cy + (py - cy) * 0.10);
       ctx.stroke();
+    }
+
+    ctx.lineWidth = thick;
+    ctx.strokeStyle = t.rim;
+    ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+
+    // Flat highlight along the top of the rim and shadow under it: two hard
+    // strokes, no gradient.
+    ctx.lineWidth = thick * 0.26;
+    ctx.strokeStyle = t.rimHi;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry - thick * 0.36, 0, Math.PI * 1.10, Math.PI * 1.90);
+    ctx.stroke();
+    ctx.strokeStyle = t.rimLow;
+    ctx.lineWidth = thick * 0.22;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry + thick * 0.34, 0, Math.PI * 1.16, Math.PI * 1.84);
+    ctx.stroke();
+
+    // Grips, and the marker that says where straight ahead is.
+    ctx.strokeStyle = t.rimHi;
+    ctx.lineWidth = thick * 1.05;
+    for (const off of [-0.62, 0.62]) {
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, top + off - 0.1, top + off + 0.1);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = t.accent;
+    ctx.lineWidth = thick * 0.9;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, top - 0.05, top + 0.05);
+    ctx.stroke();
+
+    // Hub with its bolts.
+    const hr = Math.max(18, dashH * 0.16);
+    ctx.fillStyle = t.rimHi;
+    ctx.beginPath(); ctx.ellipse(cx, cy, hr, hr * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.rimLow;
+    ctx.beginPath(); ctx.ellipse(cx, cy, hr * 0.62, hr * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.rim;
+    for (let i = 0; i < 4; i++) {
+      const a = top + Math.PI * 0.25 + i * Math.PI * 0.5;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(a) * hr * 0.8, cy + Math.sin(a) * hr * 0.5, hr * 0.1, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -369,14 +509,14 @@ export class Hud {
   drawTop(ctx, w, h, st) {
     const pad = Math.max(14, w * 0.02);
     const top = Math.max(16, h * 0.035);
+    // Flat boxes with a hard border: the readouts belong to the same machine as
+    // the dials below them.
     const panel = (x, y, pw, ph) => {
-      ctx.fillStyle = 'rgba(8,11,17,.62)';
-      this.roundRect(ctx, x, y, pw, ph, 11);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(140,175,215,.16)';
-      ctx.lineWidth = 1;
-      this.roundRect(ctx, x, y, pw, ph, 11);
-      ctx.stroke();
+      ctx.fillStyle = 'rgba(6,8,12,.78)';
+      ctx.fillRect(x, y, pw, ph);
+      ctx.strokeStyle = 'rgba(180,200,225,.34)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, pw - 2, ph - 2);
     };
 
     ctx.textAlign = 'center';
@@ -410,11 +550,9 @@ export class Hud {
 
     const bx = pad + 92, bw = 66;
     ctx.fillStyle = 'rgba(255,255,255,.10)';
-    this.roundRect(ctx, bx, top + 34, bw, 6, 3);
-    ctx.fill();
+    ctx.fillRect(bx, top + 34, bw, 6);
     ctx.fillStyle = C.green;
-    this.roundRect(ctx, bx, top + 34, Math.max(3, bw * st.progress), 6, 3);
-    ctx.fill();
+    ctx.fillRect(bx, top + 34, Math.max(3, bw * st.progress), 6);
     ctx.fillStyle = C.dim;
     ctx.font = `600 10px ${MONO}`;
     ctx.fillText(`${Math.round(st.progress * 100)}%`, bx, top + 22);
@@ -430,7 +568,7 @@ export class Hud {
   }
 
   drawMessage(ctx, w, h, st) {
-    const y = h * 0.34;
+    const y = h * 0.32;
     ctx.textAlign = 'center';
     ctx.font = `800 ${Math.round(Math.min(72, w * 0.09))}px ${FONT}`;
     ctx.lineWidth = 7;
@@ -446,15 +584,5 @@ export class Hud {
       ctx.fillStyle = '#dce6f2';
       ctx.fillText(st.submessage, w / 2, y + 38);
     }
-  }
-
-  roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
   }
 }
