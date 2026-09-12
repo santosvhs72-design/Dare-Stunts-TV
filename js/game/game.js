@@ -319,11 +319,16 @@ export class Game {
     // term is a brightness floor (see the shader in core/renderer.js), and the
     // road still has to be as easy to read as it is at midday.
     const amb = this.ambient || 1;
+    // The last argument is how much of the new sun glint and headlight
+    // highlight each group takes (see core/renderer.js): grass and trees stay
+    // matte at 0, the way they always looked; the asphalt gets a wet-looking
+    // sheen, the tunnel bore a touch more since it is also where the headlight
+    // itself does the most work, and the gates a faint gleam of their own.
     r.draw(this.chunks.ground, 0.66 * amb);
     r.draw(this.chunks.scenery, 0.58 * amb);
-    r.draw(this.chunks.road, 0.72 * amb);
-    r.draw(this.chunks.tunnel, 0.5 * amb);   // darker, so a bore feels enclosed
-    r.draw(this.chunks.gates, 0.66 * amb);
+    r.draw(this.chunks.road, 0.72 * amb, 0.5);
+    r.draw(this.chunks.tunnel, 0.5 * amb, 0.6);   // darker, so a bore feels enclosed
+    r.draw(this.chunks.gates, 0.66 * amb, 0.4);
 
     // Drawn last, over the finished scene, because it is blended.
     if (this.showGhost && this.ghost && this.ghostChunk

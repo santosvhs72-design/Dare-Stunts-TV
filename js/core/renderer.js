@@ -1,6 +1,26 @@
-import { mat4, v3, frustumPlanes, sphereVisible } from './math.js';
+import { mat4, v3, quat, frustumPlanes, sphereVisible } from './math.js';
 import { hex } from './mesh.js';
 
+// The world is still lit the way it always was -- one flat ambient floor, one
+// hemispheric term, one directional sun, all baked per vertex into vColor
+// below, exactly as before. Everything past that comment is new, and all of
+// it is additive: a mesh drawn with uSpecStrength at 0 looks pixel-for-pixel
+// like it always did, because every new term this adds multiplies out to
+// zero. Two things ride on top of the old lighting instead of inside it:
+//
+//  - A sun glint (Blinn-Phong specular), because the old lighting was pure
+//    Lambertian diffuse and had no notion of a viewing angle at all -- nothing
+//    in the scene changed as the camera turned. Computed per fragment, not
+//    per vertex like the rest, so it reads as a smooth highlight sliding
+//    across the tarmac rather than a lit facet -- the one place this scene
+//    deliberately steps outside its own low-poly Gouraud look, because a
+//    glint is exactly the kind of thing faceted shading cannot do.
+//  - A headlight: a real point light riding with the camera, the only light
+//    source here that moves on its own. It barely shows in daylight, where
+//    the surfaces it falls on are already close to fully lit -- and that is
+//    not a special case anywhere, just what happens when you add light to
+//    something already near its ceiling. It earns its keep at dusk, in a
+//    tunnel, or underneath a loop, all of which now sit noticeably darker.
 const VS = `
 attribute vec3 aPos;
 attribute vec3 aNormal;
@@ -9,9 +29,13 @@ uniform mat4 uProj, uView, uModel;
 uniform vec3 uLightDir;
 uniform float uAmbient, uLit, uFogNear, uFogFar, uFogScale;
 varying vec3 vColor;
+varying vec3 vAlbedo;
+varying vec3 vNormal;
+varying vec3 vWorldPos;
 varying float vFog;
 void main(){
-  vec4 vp = uView * (uModel * vec4(aPos, 1.0));
+  vec4 worldPos = uModel * vec4(aPos, 1.0);
+  vec4 vp = uView * worldPos;
   gl_Position = uProj * vp;
   // w = 0 rotates the normal without translating it, which is all a rigid
   // model matrix needs -- and avoids a mat3 cast for WebGL 1's sake.
@@ -24,17 +48,64 @@ void main(){
   // away from the sun, and it still has to be readable to drive through.
   float lit = uAmbient + (1.0 - uAmbient) * (0.45 * hemi + 0.55 * diff);
   vColor = mix(aColor, aColor * lit, uLit);
+  vAlbedo = aColor;
+  vNormal = n;
+  vWorldPos = worldPos.xyz;
   vFog = clamp((-vp.z - uFogNear) / (uFogFar - uFogNear), 0.0, 1.0) * uFogScale;
 }`;
 
 const FS = `
 precision mediump float;
+// uLit and uLightDir are also uniforms in the vertex shader, which has no
+// precision directive of its own and so takes GLSL ES's default for a vertex
+// shader: highp. WebGL refuses to link a program where the two stages
+// disagree on a shared uniform's precision, so these two alone are bumped to
+// match -- everything else here is fine at the cheaper mediump above.
+uniform highp float uLit;
+uniform highp vec3 uLightDir;
 uniform vec3 uFogColor;
 uniform float uAlpha;
+uniform vec3 uCamPos;
+uniform vec3 uHeadPos, uHeadDir;
+uniform float uHeadStrength, uSpecStrength;
 varying vec3 vColor;
+varying vec3 vAlbedo;
+varying vec3 vNormal;
+varying vec3 vWorldPos;
 varying float vFog;
 void main(){
-  gl_FragColor = vec4(mix(vColor, uFogColor, vFog), uAlpha);
+  vec3 N = normalize(vNormal);
+  vec3 V = normalize(uCamPos - vWorldPos);
+
+  // Viewpoint-dependent, so it travels across the surface as the camera turns
+  // -- the one part of the lighting in this scene that was never static even
+  // before the headlight existed.
+  vec3 Hsun = normalize(uLightDir + V);
+  float specSun = pow(max(dot(N, Hsun), 0.0), 50.0) * uSpecStrength;
+
+  // A point light at the camera, aimed the way the camera is aimed: falls off
+  // with distance, and with a soft-edged cone rather than a hard one, so it
+  // does not paint a visible circle on the road.
+  vec3 toFrag = vWorldPos - uHeadPos;
+  float dist = length(toFrag);
+  vec3 L = toFrag / max(dist, 0.001);
+  // L already points from the light out into the scene (uHeadPos to
+  // vWorldPos), the same way uHeadDir does -- so it is L against uHeadDir
+  // here, not -L: the cone is about where the light is aimed, not about
+  // which way the surface faces it (that part is ndotl, below).
+  float cone = smoothstep(0.55, 0.85, dot(L, uHeadDir));
+  float atten = cone / (1.0 + 0.025 * dist + 0.0035 * dist * dist);
+  float ndotl = max(dot(N, -L), 0.0);
+  vec3 headDiffuse = vAlbedo * vec3(1.0, 0.97, 0.88) * ndotl * atten * uHeadStrength;
+  vec3 Hhead = normalize(-L + V);
+  float specHead = pow(max(dot(N, Hhead), 0.0), 26.0) * atten * uHeadStrength * uSpecStrength;
+
+  // Gated by uLit, the same switch the old per-vertex lighting already obeys:
+  // the sky is the only mesh drawn with uLit at 0, and none of this new
+  // lighting belongs on a background that was never meant to be lit at all.
+  vec3 dynamic = (headDiffuse + specSun + specHead) * uLit;
+  vec3 color = mix(vColor + dynamic, uFogColor, vFog);
+  gl_FragColor = vec4(color, uAlpha);
 }`;
 
 function compile(gl, type, src) {
@@ -74,7 +145,8 @@ export class Renderer {
     };
     this.u = {};
     for (const n of ['uProj', 'uView', 'uModel', 'uLightDir', 'uAmbient', 'uLit',
-                     'uFogNear', 'uFogFar', 'uFogScale', 'uFogColor', 'uAlpha']) {
+                     'uFogNear', 'uFogFar', 'uFogScale', 'uFogColor', 'uAlpha',
+                     'uCamPos', 'uHeadPos', 'uHeadDir', 'uHeadStrength', 'uSpecStrength']) {
       this.u[n] = gl.getUniformLocation(prog, n);
     }
 
@@ -87,6 +159,12 @@ export class Renderer {
     this.fogNear = 150;
     this.fogFar = 460;
     this.cullDistance = 540;
+    // How bright the headlight pool gets, at its very centre, before falloff
+    // and the cone take anything away. Past 1 on purpose: WebGL clamps the
+    // framebuffer to 1 regardless, so anything over just means the light
+    // saturates a little sooner as it nears the camera, the way a real
+    // headlight blows out what is right in front of it.
+    this.headStrength = 1.4;
     this.resize();
   }
 
@@ -146,6 +224,15 @@ export class Renderer {
     gl.uniform3fv(this.u.uFogColor, this.fogColor);
     gl.uniform1f(this.u.uFogNear, this.fogNear);
     gl.uniform1f(this.u.uFogFar, this.fogFar);
+
+    // The headlight rides at the camera, aimed the way the camera looks --
+    // there is no separate car body in this first-person view for it to be
+    // mounted on, so the camera is the closest thing to where a headlight
+    // would be.
+    gl.uniform3fv(this.u.uCamPos, camPos);
+    gl.uniform3fv(this.u.uHeadPos, camPos);
+    gl.uniform3fv(this.u.uHeadDir, quat.fwd(camQuat));
+    gl.uniform1f(this.u.uHeadStrength, this.headStrength);
   }
 
   bind(chunk) {
@@ -163,6 +250,7 @@ export class Renderer {
     gl.disable(gl.DEPTH_TEST);
     gl.uniformMatrix4fv(this.u.uView, false, this.skyView);
     gl.uniform1f(this.u.uLit, 0);
+    gl.uniform1f(this.u.uSpecStrength, 0);
     gl.uniform1f(this.u.uFogScale, 0);
     gl.uniform1f(this.u.uAmbient, 1);
     this.bind(chunk);
@@ -174,7 +262,7 @@ export class Renderer {
   // A single moving, see-through object. Blending is enabled only here, and
   // depth writing is off so the ghost never hides the road behind it -- it is a
   // replay, not an obstacle.
-  drawGhost(chunk, model, ambient = 0.62, alpha = 0.45) {
+  drawGhost(chunk, model, ambient = 0.62, alpha = 0.45, specStrength = 0.3) {
     const gl = this.gl;
     if (!chunk || !chunk.count) return;
     gl.enable(gl.BLEND);
@@ -186,6 +274,7 @@ export class Renderer {
     gl.uniform1f(this.u.uFogScale, 1);
     gl.uniform1f(this.u.uAmbient, ambient);
     gl.uniform1f(this.u.uAlpha, alpha);
+    gl.uniform1f(this.u.uSpecStrength, specStrength);
     this.bind(chunk);
     gl.drawArrays(gl.TRIANGLES, 0, chunk.count);
     gl.uniformMatrix4fv(this.u.uModel, false, IDENTITY);
@@ -194,13 +283,17 @@ export class Renderer {
     gl.disable(gl.BLEND);
   }
 
-  // Draws chunks with distance + frustum culling.
-  draw(chunks, ambient = 0.52) {
+  // Draws chunks with distance + frustum culling. specStrength is how much
+  // of a sun glint and a headlight highlight this group of meshes gets --
+  // 0 for the matte ground and scenery, a real value for the road, the
+  // tunnel bore and the gates (see Game.render for the numbers).
+  draw(chunks, ambient = 0.52, specStrength = 0) {
     const gl = this.gl;
     gl.uniformMatrix4fv(this.u.uView, false, this.viewMat);
     gl.uniform1f(this.u.uLit, 1);
     gl.uniform1f(this.u.uFogScale, 1);
     gl.uniform1f(this.u.uAmbient, ambient);
+    gl.uniform1f(this.u.uSpecStrength, specStrength);
     const cull = this.cullDistance;
     for (const c of chunks) {
       if (!c.count) continue;
