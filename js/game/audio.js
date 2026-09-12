@@ -183,6 +183,29 @@ export class Sound {
     else this.tone(940, 0.42, { type: 'square', vol: 0.2 });
   }
 
+  // Feedback for moving the highlight in a menu or along a rail: felt more
+  // than heard. tone()'s fixed 15 ms attack is built for a chime, and a chime
+  // is wrong for a click -- held to scroll a long list, it has to disappear
+  // into one continuous texture rather than read as a string of separate
+  // notes, so the attack here is a couple of milliseconds and the whole
+  // sound is over before the next repeat (130 ms, see TvInput's HOLD_NEXT)
+  // could ever overlap it.
+  tick() {
+    if (!this.ready) return;
+    const ctx = this.ctx, t = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = 'square';
+    o.frequency.setValueAtTime(1600, t);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.10, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + 0.05);
+  }
+
   checkpoint() {
     this.tone(880, 0.12, { type: 'triangle', vol: 0.18 });
     this.tone(1320, 0.26, { type: 'triangle', vol: 0.16, delay: 0.09 });

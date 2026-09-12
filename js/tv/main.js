@@ -103,8 +103,14 @@ let racing = false;
 
 // While a race runs nothing is on screen but the game; this placeholder view
 // exists only so the menu and back buttons still have somewhere to land.
+//
+// `drive: true` tells the central dispatcher below not to play the menu tick
+// on up/down/left/right here: those are steering, arriving through the same
+// D-pad and the same TvInput actions as menu navigation, and would otherwise
+// click on every single input of an analogue stick held over into a turn.
 const raceView = () => ({
   el: null,
+  drive: true,
   key(a) {
     if (a === 'menu' || a === 'back') pauseRace();
     // G on a keyboard, Y on a pad. A remote has neither, so the pause menu
@@ -237,8 +243,18 @@ game.onFinish = ({ time, best, record, carRecord }) => {
 
 /* ----------------------------------------------------------------- input -- */
 
+// Menu feedback: a click on every genuine change of highlight. Every screen
+// but the race view uses up/down/left/right purely for navigation (see
+// raceView's `drive` flag above for the one exception), and every one of
+// them wraps at the ends rather than stopping dead -- so a directional
+// action reaching here always did move the selection, and there is nowhere
+// better to hook this once than the single point every action already
+// passes through on its way to whichever screen is on top.
+let audioTouched = false;
 tv.on(a => {
+  if (!audioTouched) { audioTouched = true; sound.unlock(); }
   const t = top();
+  if (!(t && t.drive) && (a === 'up' || a === 'down' || a === 'left' || a === 'right')) sound.tick();
   if (t && t.key) t.key(a);
 });
 
