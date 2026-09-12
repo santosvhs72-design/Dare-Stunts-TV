@@ -26,13 +26,29 @@ attribute vec3 aPos;
 attribute vec3 aNormal;
 attribute vec3 aColor;
 uniform mat4 uProj, uView, uModel;
-uniform vec3 uLightDir;
-uniform float uAmbient, uLit, uFogNear, uFogFar, uFogScale;
-varying vec3 vColor;
-varying vec3 vAlbedo;
-varying vec3 vNormal;
-varying vec3 vWorldPos;
-varying float vFog;
+// mediump, and stated outright rather than left to default: these two are
+// also uniforms in the fragment shader below, which (like every fragment
+// shader) has no built-in default precision for float at all and states
+// mediump for the whole file. A uniform shared between both stages has to
+// resolve to the very same precision in each, or the driver refuses to link
+// the program -- and highp fragment support is itself optional in GLSL ES,
+// so matching by pulling the vertex shader down to mediump is the safe
+// direction: mediump is guaranteed in both stages, on every conformant
+// implementation, where highp in a fragment shader is not. A 0-or-1 switch
+// and a normalised direction never needed more precision than that anyway.
+uniform mediump float uLit;
+uniform mediump vec3 uLightDir;
+uniform float uAmbient, uFogNear, uFogFar, uFogScale;
+// Every varying explicitly mediump too, and for the same reason as uLit and
+// uLightDir just above: a varying's precision has to match between the
+// vertex shader writing it and the fragment shader reading it, just as a
+// shared uniform's does, and leaving it to each file's own default is the
+// same trap either way.
+varying mediump vec3 vColor;
+varying mediump vec3 vAlbedo;
+varying mediump vec3 vNormal;
+varying mediump vec3 vWorldPos;
+varying mediump float vFog;
 void main(){
   vec4 worldPos = uModel * vec4(aPos, 1.0);
   vec4 vp = uView * worldPos;
@@ -56,23 +72,18 @@ void main(){
 
 const FS = `
 precision mediump float;
-// uLit and uLightDir are also uniforms in the vertex shader, which has no
-// precision directive of its own and so takes GLSL ES's default for a vertex
-// shader: highp. WebGL refuses to link a program where the two stages
-// disagree on a shared uniform's precision, so these two alone are bumped to
-// match -- everything else here is fine at the cheaper mediump above.
-uniform highp float uLit;
-uniform highp vec3 uLightDir;
 uniform vec3 uFogColor;
 uniform float uAlpha;
 uniform vec3 uCamPos;
 uniform vec3 uHeadPos, uHeadDir;
 uniform float uHeadStrength, uSpecStrength;
-varying vec3 vColor;
-varying vec3 vAlbedo;
-varying vec3 vNormal;
-varying vec3 vWorldPos;
-varying float vFog;
+uniform mediump float uLit;
+uniform mediump vec3 uLightDir;
+varying mediump vec3 vColor;
+varying mediump vec3 vAlbedo;
+varying mediump vec3 vNormal;
+varying mediump vec3 vWorldPos;
+varying mediump float vFog;
 void main(){
   vec3 N = normalize(vNormal);
   vec3 V = normalize(uCamPos - vWorldPos);

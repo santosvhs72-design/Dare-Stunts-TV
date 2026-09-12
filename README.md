@@ -160,12 +160,21 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   superfície em vez de pertencerem a uma faceta) e multiplicados por
   `uSpecStrength`/`uHeadStrength` — que ficam a 0 na relva, nas árvores e no
   céu. Uma malha que não peça nada disto continua pixel a pixel como sempre
-  esteve. Uma esquisitice do GLSL ES que valeu a pena registar: um uniform
-  usado nos dois estágios (`uLit`, `uLightDir`) tem de ter a mesma precisão
-  nos dois, e o *vertex shader* nunca teve uma directiva `precision` própria
-  (o que o deixa em `highp`, por omissão) — por isso só esses dois uniforms
-  são explicitamente `highp` no *fragment shader*, que continua em `mediump`
-  para o resto.
+  esteve. Uma esquisitice do GLSL ES que valeu a pena registar: um uniform ou
+  uma *varying* usado nos dois estágios tem de ter a mesma precisão nos dois,
+  ou o *driver* recusa-se a ligar o programa — e isto apanhou-nos duas vezes
+  na mesma funcionalidade. `uLit` e `uLightDir` são uniforms partilhados entre
+  os dois estágios, e o *vertex shader* nunca teve uma directiva `precision`
+  própria (o que o deixa em `highp`, por omissão); as três novas *varyings*
+  (`vAlbedo`, `vNormal`, `vWorldPos`) também cruzam os dois estágios e caíam
+  na mesma armadilha. A correção inicial forçava só `uLit`/`uLightDir` a
+  `highp` no *fragment shader* — funcionou nalguns aparelhos mas não em
+  todos, porque `highp` no *fragment shader* é só opcional na norma GLSL ES,
+  ao contrário de `mediump`, que todo o hardware conformante suporta nos dois
+  estágios. A correção definitiva vai no sentido inverso: tudo o que atravessa
+  a fronteira entre os dois *shaders* — os dois uniforms e as cinco *varyings*
+  — é agora `mediump`, explícito e igual dos dois lados, sem depender da
+  omissão de nenhum dos ficheiros.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem
