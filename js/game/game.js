@@ -4,7 +4,7 @@ import { buildSky, buildGround, buildScenery, skyFogColor, skyAmbient } from '..
 import { Car, MODE, gearFor } from './car.js';
 import { CARS } from './cars.js';
 import { Hud } from './hud.js';
-import { clamp } from '../core/math.js';
+import { clamp, quat, v3 } from '../core/math.js';
 import { GhostRecorder, GhostPlayer, buildGhostMesh, ghostModelMatrix,
          loadGhost, saveGhost, clearGhost,
          GHOST_ALPHA, GHOST_AMBIENT } from './ghost.js';
@@ -70,8 +70,16 @@ function saveBest(id, ms, car) {
 
 export const STATE = {
   IDLE: 'idle', COUNTDOWN: 'countdown', RACING: 'racing',
-  PAUSED: 'paused', FINISHED: 'finished',
+  PAUSED: 'paused', FINISHED: 'finished', REPLAY: 'replay',
 };
+
+// How the replay camera sits behind the car: back and up in the car's own
+// frame (so it banks and dips with the road exactly as the car does), tilted
+// down a little so the car sits in frame rather than at the bottom edge.
+const REPLAY_BACK = 6.5;
+const REPLAY_UP = 2.3;
+const REPLAY_TILT = 0.22;   // rad, pitched down
+const REPLAY_FOV = 62;
 
 export class Game {
   constructor(glCanvas, hudCanvas, input, sound = null) {
@@ -92,6 +100,14 @@ export class Game {
     this.ghostChunk = null;
     this.ghostRec = null;
     this.ghostDelta = null;
+    // The lap just finished, kept in memory (not storage) so it can be
+    // watched back regardless of whether it set any record.
+    this.lastLap = null;
+    this.replay = null;
+    this.replayChunk = null;
+    this.replayTimeMs = 0;
+    this.replayPose = null;
+    this.replayPaused = false;
     this.lastTime = 0;
     this.fov = 70;
     this.raf = null;
@@ -199,6 +215,15 @@ export class Game {
       this.checkProgress();
     } else if (this.state === STATE.FINISHED) {
       this.car.update(dt, idle);
+    } else if (this.state === STATE.REPLAY) {
+      if (!this.replayPaused) {
+        this.replayTimeMs += dt * 1000;
+        let pose = this.replay.at(this.replayTimeMs);
+        // The lap always ends before this runs out of samples, so reaching
+        // the end means it is time to start it over, not stop rendering.
+        if (!pose) { this.replayTimeMs = 0; this.replay.reset(); pose = this.replay.at(0); }
+        this.replayPose = pose;
+      }
     } else {
       this.car.updateCamera(dt);
     }
@@ -276,6 +301,9 @@ export class Game {
   finish() {
     this.state = STATE.FINISHED;
     this.finalTime = this.timeMs;
+    // Kept regardless of whether this lap set any record: a replay is about
+    // watching the drive just made, not about who holds the track.
+    this.lastLap = { car: this.car0.id, p: this.ghostRec.p.slice(), ms: this.finalTime };
     const prev = getBest(this.def.id);
     this.newRecord = prev == null || this.finalTime < prev.ms;
     // Kept apart from the overall record: a lap that beats your own previous
@@ -307,13 +335,47 @@ export class Game {
     });
   }
 
+  // Watching the lap just driven, from outside the car -- the ghost mesh is
+  // built for exactly this (an opaque, external view of a lap), so the same
+  // GhostPlayer that reconstructs a saved ghost reconstructs this one too.
+  startReplay() {
+    if (!this.lastLap) return false;
+    if (this.replayChunk) this.renderer.dispose([this.replayChunk]);
+    this.replay = new GhostPlayer(this.lastLap, this.track);
+    this.replayChunk = this.renderer.upload(buildGhostMesh(this.car0.theme.accent));
+    this.replayTimeMs = 0;
+    this.replayPose = this.replay.at(0);
+    this.replayPaused = false;
+    this.state = STATE.REPLAY;
+    return true;
+  }
+
+  stopReplay() {
+    if (this.replayChunk) { this.renderer.dispose([this.replayChunk]); this.replayChunk = null; }
+    this.replay = null;
+    this.replayPose = null;
+    if (this.state === STATE.REPLAY) this.state = STATE.FINISHED;
+  }
+
+  toggleReplayPause() { this.replayPaused = !this.replayPaused; }
+
   render(dt) {
     const car = this.car;
     const targetFov = 68 + clamp(Math.abs(car.v), 0, 63) * 0.27;
     this.fov += (targetFov - this.fov) * Math.min(1, dt * 5);
 
     const r = this.renderer;
-    r.beginFrame(car.camQuat, car.camPos, this.fov);
+    // In a replay the camera follows the car from outside rather than sitting
+    // in the cockpit -- everything from here on (fog, culling, the world
+    // itself) stays exactly as driving left it, only the vantage point moves.
+    let camQuat = car.camQuat, camPos = car.camPos, fov = this.fov;
+    if (this.state === STATE.REPLAY && this.replayPose) {
+      const p = this.replayPose;
+      camQuat = quat.mul(p.q, quat.axisAngle([1, 0, 0], REPLAY_TILT));
+      camPos = v3.mad(v3.mad(p.pos, quat.fwd(p.q), -REPLAY_BACK), quat.up(p.q), REPLAY_UP);
+      fov = REPLAY_FOV;
+    }
+    r.beginFrame(camQuat, camPos, fov);
     r.drawSky(this.chunks.sky);
     // A dusk or twilight preset lowers this a little, never far: the ambient
     // term is a brightness floor (see the shader in core/renderer.js), and the
@@ -326,7 +388,12 @@ export class Game {
     r.draw(this.chunks.gates, 0.66 * amb);
 
     // Drawn last, over the finished scene, because it is blended.
-    if (this.showGhost && this.ghost && this.ghostChunk
+    if (this.state === STATE.REPLAY && this.replayPose && this.replayChunk) {
+      // Full ambient and opaque: this is the car, not a hint of one, so it
+      // reads nothing like the faint record-holder ghost drawn alongside a
+      // race in progress below.
+      r.drawGhost(this.replayChunk, ghostModelMatrix(this.replayPose), 1, 1);
+    } else if (this.showGhost && this.ghost && this.ghostChunk
         && this.state !== STATE.COUNTDOWN) {
       const pose = this.ghost.at(this.timeMs);
       if (pose) r.drawGhost(this.ghostChunk, ghostModelMatrix(pose), GHOST_AMBIENT, GHOST_ALPHA);
@@ -370,25 +437,32 @@ export class Game {
       this.sound.follow(car);
     }
 
-    this.hud.draw({
-      speedKmh: speed,
-      topKmh,
-      theme: this.car0.theme,
-      rpm,
-      gear: car.v < -0.5 ? 'R' : String(gear),
-      steer: car.steer / this.car0.phys.maxSteer,
-      throttle: this.input.throttle,
-      brake: this.input.brake,
-      slip: car.slip,
-      cornerDir: corner ? corner.dir : null,
-      cornerUrgency: corner ? corner.urgency : 0,
-      timeMs: this.timeMs,
-      bestMs: this.best ? this.best.ms : null,
-      cpDone: this.cpIndex,
-      cpTotal: this.track.checkpoints.length,
-      progress: clamp(car.s / this.track.length, 0, 1),
-      ghostDelta: this.ghostDelta,
-      message, submessage: sub, messageColor: color,
-    });
+    // The cockpit is modelled for the driver's own seat; seen from behind the
+    // car in a replay it would float over the picture meaning nothing, so it
+    // is left off rather than drawn wrong.
+    if (this.state === STATE.REPLAY) {
+      this.hud.clear();
+    } else {
+      this.hud.draw({
+        speedKmh: speed,
+        topKmh,
+        theme: this.car0.theme,
+        rpm,
+        gear: car.v < -0.5 ? 'R' : String(gear),
+        steer: car.steer / this.car0.phys.maxSteer,
+        throttle: this.input.throttle,
+        brake: this.input.brake,
+        slip: car.slip,
+        cornerDir: corner ? corner.dir : null,
+        cornerUrgency: corner ? corner.urgency : 0,
+        timeMs: this.timeMs,
+        bestMs: this.best ? this.best.ms : null,
+        cpDone: this.cpIndex,
+        cpTotal: this.track.checkpoints.length,
+        progress: clamp(car.s / this.track.length, 0, 1),
+        ghostDelta: this.ghostDelta,
+        message, submessage: sub, messageColor: color,
+      });
+    }
   }
 }

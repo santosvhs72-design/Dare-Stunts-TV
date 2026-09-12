@@ -142,6 +142,43 @@ function leaveRace() {
   ui.classList.remove('hidden');
 }
 
+// Watching the lap just finished, from outside the car. No `.modal` class on
+// purpose: restack() (above) hides whatever is under a non-modal top of
+// stack, so pushing this is what takes the result panel's dark backdrop off
+// the screen and leaves the replay filling it, and popping it (Voltar) is
+// what brings the result panel straight back.
+function replayView() {
+  const el = node(`<div class="safe" style="justify-content:flex-end;align-items:center">
+    <div style="background:rgba(34,38,44,.82);border-radius:12px;padding:1vh 1.6vw;
+      margin-bottom:1.6vh;font:700 1.5vw/1 ui-monospace,Menlo,monospace;color:#ffb43a">
+      <span id="rp-time"></span>
+    </div>
+    <div class="legend">
+      <span class="a"><em>A</em><span id="rp-pause">pausar</span></span>
+      <span class="b"><em>B</em>sair</span>
+    </div>
+  </div>`);
+  const timeEl = el.querySelector('#rp-time');
+  const pauseEl = el.querySelector('#rp-pause');
+  let raf = null;
+  const tick = () => {
+    const total = game.lastLap ? game.lastLap.ms : 0;
+    timeEl.textContent = `${formatTime(Math.min(game.replayTimeMs, total))} / ${formatTime(total)}`;
+    pauseEl.textContent = game.replayPaused ? 'continuar' : 'pausar';
+    raf = requestAnimationFrame(tick);
+  };
+  return {
+    el,
+    drive: true,   // nothing here is menu navigation either
+    mounted: tick,
+    dispose() { if (raf) cancelAnimationFrame(raf); game.stopReplay(); },
+    key(a) {
+      if (a === 'back' || a === 'menu') app.pop();
+      else if (a === 'ok') game.toggleReplayPause();
+    },
+  };
+}
+
 // Racing against a ghost is not always what you want: on a track you are still
 // learning it is another car in the way, and the gap readout is a running
 // commentary on losing. So it goes off and on mid-lap, and the choice sticks.
@@ -221,6 +258,7 @@ game.onFinish = ({ time, best, record, carRecord }) => {
 
   const items = [
     { label: 'Outra volta', run: () => { app.pop(); ui.classList.add('hidden'); game.restart(); } },
+    { label: 'Ver reposição', run: () => { game.startReplay(); app.push(replayView()); } },
     { label: 'Escolher pista', run: () => { app.pop(); app.pop(); leaveRace(); } },
   ];
   let i = 0;

@@ -35,6 +35,11 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   pista ou no do construtor); partilhada, os outros perfis passam a vê-la numa
   secção "Pistas partilhadas" própria, com o nome de quem a fez — mas só o
   autor a pode editar, apagar ou deixar de partilhar.
+- **Reposição da volta**: no ecrã de fim de volta, "Ver reposição" mostra a
+  volta acabada de correr vista de fora do carro, com o mesmo fantasma que já
+  existia para o recorde -- em vez de o desenhar a par do carro a conduzir,
+  a câmara passa a segui-lo. Pausa e sai a qualquer momento; chega ao fim,
+  recomeça sozinha.
 - **Aviso de curva**: duas setas por cima do velocímetro, como os piscas de um
   automóvel a sério, acendem para o lado de uma curva que a velocidade actual
   já não permite fazer — quanto mais tarde, mais forte.
@@ -93,6 +98,7 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Ver o que o comando envia | menu inicial &rarr; Comando | idem |
 | Trocar ou criar perfil | menu inicial &rarr; Perfil | idem |
 | Ver recordes de uma pista | seletor de pistas &rarr; ↓ &rarr; Ver recordes | idem |
+| Ver a reposição da última volta | ecrã de fim de volta &rarr; Ver reposição | idem |
 | Partilhar uma pista tua | seletor de pistas &rarr; ↓ &rarr; Partilhar | idem |
 | Ver pistas partilhadas | seletor de pistas &rarr; última pista da fila | idem |
 | Fechar a aplicação | menu inicial &rarr; Sair, ou Voltar | idem |
@@ -147,6 +153,16 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   visível contra o céu por trás. Por isso `Renderer.fogColor` é um campo da
   instância, escrito de novo em cada `Game.load()` (`skyFogColor()` em
   `world/scenery.js`), e não uma constante fixa como era antes.
+- **A reposição é o mesmo fantasma, visto de fora em vez de a par do carro.**
+  `Game.startReplay()` (`game/game.js`) usa o próprio `GhostPlayer` e o mesmo
+  `buildGhostMesh()` do fantasma do recorde -- só a câmara muda, para uma
+  posição atrás e acima do carro derivada da orientação gravada, e o modelo
+  passa a opaco em vez de translúcido. E o ecrã de reposição
+  (`replayView()`, `tv/main.js`) não leva a classe `.modal`: `restack()` já
+  escondia o que estivesse por baixo do topo da pilha sempre que esse topo
+  não fosse modal, e é exactamente esse comportamento, já ali, que tira o
+  fundo escuro do resultado da volta e mostra a pista em vez dele -- sem
+  precisar de um caso especial só para isto.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem

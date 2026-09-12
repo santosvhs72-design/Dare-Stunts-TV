@@ -134,6 +134,15 @@ export class Hud {
     ctx.fill();
   }
 
+  // Nothing to overlay -- used instead of draw() where the cockpit itself
+  // would not make sense (a replay watched from outside the car).
+  clear() {
+    this.resize();
+    const ctx = this.ctx;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.clearRect(0, 0, this.w, this.h);
+  }
+
   draw(st) {
     this.resize();
     const ctx = this.ctx;
