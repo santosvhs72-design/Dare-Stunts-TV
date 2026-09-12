@@ -41,12 +41,6 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
 - **Céu diferente por pista** — manhã, entardecer, crepúsculo — para cada
   circuito se distinguir dos outros dois já no primeiro segundo, sem ler o
   nome.
-- **Iluminação dinâmica**: um farol que anda com a câmara, a única luz desta
-  cena que se move sozinha — quase invisível de dia, mas real dentro de um
-  túnel ou por baixo de um loop — e um brilho de sol na estrada e no cenário
-  que desliza pela superfície consoante o ângulo, em vez de fixo como o resto
-  da luz sempre foi. Só a estrada, o túnel e as portarias brilham; a relva e
-  as árvores continuam foscas.
 - **Ilustração no ecrã inicial** (`img/capa.svg`): desenhada com as cores e as
   formas do próprio jogo, em SVG de 6 KB — nada de imagens pesadas no APK.
 - **Cockpit ao estilo de 1990**: painéis planos, mostradores redondos com
@@ -153,28 +147,6 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   visível contra o céu por trás. Por isso `Renderer.fogColor` é um campo da
   instância, escrito de novo em cada `Game.load()` (`skyFogColor()` em
   `world/scenery.js`), e não uma constante fixa como era antes.
-- **O farol e o brilho de sol são só somados, nunca misturados.** O resto da
-  luz continua exactamente como sempre foi — sombreada por vértice, cozida em
-  `vColor` antes sequer de chegar ao *fragment shader*. O farol e o brilho
-  entram à parte, por cima, calculados por fragmento (por isso deslizam pela
-  superfície em vez de pertencerem a uma faceta) e multiplicados por
-  `uSpecStrength`/`uHeadStrength` — que ficam a 0 na relva, nas árvores e no
-  céu. Uma malha que não peça nada disto continua pixel a pixel como sempre
-  esteve. Uma esquisitice do GLSL ES que valeu a pena registar: um uniform ou
-  uma *varying* usado nos dois estágios tem de ter a mesma precisão nos dois,
-  ou o *driver* recusa-se a ligar o programa — e isto apanhou-nos duas vezes
-  na mesma funcionalidade. `uLit` e `uLightDir` são uniforms partilhados entre
-  os dois estágios, e o *vertex shader* nunca teve uma directiva `precision`
-  própria (o que o deixa em `highp`, por omissão); as três novas *varyings*
-  (`vAlbedo`, `vNormal`, `vWorldPos`) também cruzam os dois estágios e caíam
-  na mesma armadilha. A correção inicial forçava só `uLit`/`uLightDir` a
-  `highp` no *fragment shader* — funcionou nalguns aparelhos mas não em
-  todos, porque `highp` no *fragment shader* é só opcional na norma GLSL ES,
-  ao contrário de `mediump`, que todo o hardware conformante suporta nos dois
-  estágios. A correção definitiva vai no sentido inverso: tudo o que atravessa
-  a fronteira entre os dois *shaders* — os dois uniforms e as cinco *varyings*
-  — é agora `mediump`, explícito e igual dos dois lados, sem depender da
-  omissão de nenhum dos ficheiros.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem
