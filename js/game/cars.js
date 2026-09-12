@@ -6,7 +6,7 @@ import { profileKey } from '../ui/profiles.js';
 export const CARS = [
   {
     id: 'veloz',
-    name: 'Lebre',
+    name: 'Speed King',
     tagline: 'Mais velocidade, menos aderência',
     best: 'Circuitos com retas longas e curvas abertas',
     bars: { Velocidade: 0.95, Aderência: 0.5, Travagem: 0.55 },
@@ -26,7 +26,7 @@ export const CARS = [
   },
   {
     id: 'equilibrado',
-    name: 'Corsário',
+    name: 'Smooth Operator',
     tagline: 'Equilíbrio entre velocidade e aderência',
     best: 'Circuitos mistos, com retas e algumas curvas lentas',
     bars: { Velocidade: 0.72, Aderência: 0.7, Travagem: 0.7 },
@@ -43,7 +43,7 @@ export const CARS = [
   },
   {
     id: 'aderente',
-    name: 'Tenaz',
+    name: 'Slow Hand',
     tagline: 'Mais aderência, menos velocidade',
     best: 'Circuitos lentos, com muitas curvas apertadas',
     bars: { Velocidade: 0.5, Aderência: 0.95, Travagem: 0.9 },

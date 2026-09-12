@@ -24,8 +24,8 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   da volta, e a escolha fica guardada.
 - **Recorde global e recorde por carro**: cada pista guarda o melhor tempo de
   sempre e também o melhor de cada um dos três carros, para se poder tentar
-  bater a tua própria marca com o Tenaz mesmo que o recorde da pista pertença à
-  Lebre. Vê-se tudo em "Ver recordes", no menu da pista (↓).
+  bater a tua própria marca com o Slow Hand mesmo que o recorde da pista
+  pertença ao Speed King. Vê-se tudo em "Ver recordes", no menu da pista (↓).
 - **Perfis locais**: a televisão é de todos, os recordes não. Cada perfil tem o
   seu próprio carro escolhido, recordes e fantasmas; o padrão (Piloto 1) usa as
   mesmas chaves de sempre, por isso quem nunca abrir "Perfil" no menu inicial

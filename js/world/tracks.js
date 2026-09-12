@@ -24,7 +24,7 @@ export const TRACKS = [
     name: 'Costa Verde',
     difficulty: 1,
     diffLabel: 'Fácil',
-    desc: 'Retas longas e curvas muito abertas. Recompensa velocidade máxima — terreno da Lebre.',
+    desc: 'Retas longas e curvas muito abertas. Recompensa velocidade máxima — terreno do Speed King.',
     sky: 'dia',
     target: 110,
     pieces: [
@@ -46,7 +46,7 @@ export const TRACKS = [
     name: 'Serra Alta',
     difficulty: 2,
     diffLabel: 'Média',
-    desc: 'Retas e curvas médias, um loop em túnel e dois corkscrews. Circuito misto — feito para o Corsário.',
+    desc: 'Retas e curvas médias, um loop em túnel e dois corkscrews. Circuito misto — feito para o Smooth Operator.',
     sky: 'entardecer',
     target: 143,
     pieces: [
@@ -75,7 +75,7 @@ export const TRACKS = [
     name: 'Circuito Vertigem',
     difficulty: 3,
     diffLabel: 'Difícil',
-    desc: 'Curvas muito apertadas e chicanes encadeadas, onde a aderência vale mais que a potência. Terreno do Tenaz.',
+    desc: 'Curvas muito apertadas e chicanes encadeadas, onde a aderência vale mais que a potência. Terreno do Slow Hand.',
     sky: 'crepusculo',
     target: 135,
     pieces: [

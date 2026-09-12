@@ -27,7 +27,7 @@ export function getBest(id) {
 // The overall record names its car, but says nothing about how the other two
 // would have done -- and picking the right car for a circuit is half the
 // game. One best time per car, alongside the single overall one, so a lap
-// with the Tenaz can be judged against your own previous laps with the Tenaz,
+// with the Slow Hand can be judged against your own previous laps with it,
 // not just against whichever car happens to hold the track outright.
 export function getCarBests(id) {
   try {
