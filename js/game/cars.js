@@ -1,6 +1,7 @@
 // Three cars, none better than the others: each trades top speed against grip,
 // so the right choice depends on the circuit. Balance is verified by driving
 // every car on every track with the editor's autopilot.
+import { profileKey } from '../ui/profiles.js';
 
 export const CARS = [
   {
@@ -59,14 +60,15 @@ export const CARS = [
   },
 ];
 
-const KEY = 'velocidadecega.car';
-
 export const carById = id => CARS.find(c => c.id === id) || CARS[1];
 
+// Which car was last chosen belongs to whoever chose it -- profileKey() reads
+// the *current* profile each time, so switching profile and calling this again
+// reads the new one's choice, not a value cached from before the switch.
 export function loadCar() {
-  try { return carById(localStorage.getItem(KEY)); } catch { return CARS[1]; }
+  try { return carById(localStorage.getItem(profileKey('car'))); } catch { return CARS[1]; }
 }
 
 export function saveCar(id) {
-  try { localStorage.setItem(KEY, id); } catch { /* private mode */ }
+  try { localStorage.setItem(profileKey('car'), id); } catch { /* private mode */ }
 }

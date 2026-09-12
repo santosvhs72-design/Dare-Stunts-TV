@@ -330,7 +330,8 @@ export function editorScreen(app, def) {
     if (best) {
       items.splice(4, 0, { label: 'Limpar o recorde', run: () => { app.pop(); app.push(confirmModal({
         title: 'Limpar o recorde?',
-        text: `Apaga o tempo de ${formatTime(best.ms)} e o fantasma dessa volta.`,
+        text: `Apaga o tempo de ${formatTime(best.ms)}, o fantasma dessa volta`
+            + ' e a melhor volta guardada de cada carro nesta pista.',
         yes: 'Limpar', no: 'Cancelar',
         onYes: () => { clearRecord(editingId); app.pop(); message('Recorde limpo.'); },
         onNo: () => app.pop(),

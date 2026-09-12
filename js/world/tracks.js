@@ -1,5 +1,11 @@
 // Tracks are plain data so the editor can open, edit and save them, and so
 // custom tracks travel through localStorage as JSON.
+//
+// `sky` names one of the presets in world/scenery.js (SKY_PRESETS) -- each
+// built-in track gets its own, for a bit of identity and variety between three
+// otherwise similar green circuits. A track without one (every custom track,
+// since nothing in the editor asks the builder to choose) just gets the
+// default: buildSky() and skyFogColor() both fall back to 'dia' on their own.
 const s = len => ({ t: 's', len });
 const c = (r, a, dir, bank) => ({ t: 'c', r, a, dir, bank });
 const ch = (r, a, dir, bank) => ({ t: 'chicane', r, a, dir, bank });
@@ -19,6 +25,7 @@ export const TRACKS = [
     difficulty: 1,
     diffLabel: 'Fácil',
     desc: 'Retas longas e curvas muito abertas. Recompensa velocidade máxima — terreno da Lebre.',
+    sky: 'dia',
     target: 110,
     pieces: [
       s(330), cp(),
@@ -40,6 +47,7 @@ export const TRACKS = [
     difficulty: 2,
     diffLabel: 'Média',
     desc: 'Retas e curvas médias, um loop em túnel e dois corkscrews. Circuito misto — feito para o Corsário.',
+    sky: 'entardecer',
     target: 143,
     pieces: [
       s(150), cp(),
@@ -68,6 +76,7 @@ export const TRACKS = [
     difficulty: 3,
     diffLabel: 'Difícil',
     desc: 'Curvas muito apertadas e chicanes encadeadas, onde a aderência vale mais que a potência. Terreno do Tenaz.',
+    sky: 'crepusculo',
     target: 135,
     pieces: [
       s(60), cp(),

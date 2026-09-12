@@ -6,13 +6,16 @@
 // each choice gets its own screen with a single row to walk along.
 import { CARS, carById } from '../game/cars.js';
 import { TRACKS } from '../world/tracks.js';
-import { getBest, clearRecord } from '../game/game.js';
+import { getBest, getCarBests, clearRecord } from '../game/game.js';
 import { formatTime } from '../game/hud.js';
 import { loadCustom, deleteCustom } from '../world/customtracks.js';
 import { walkTrack } from '../world/track.js';
 import { drawTrackMap } from './map.js';
 import { keyName } from '../ui/keys.js';
 import { activePad, allPads } from '../ui/pads.js';
+import { textEntry } from './keyboard.js';
+import { listProfiles, activeProfileId, isDefaultProfile,
+         createProfile, renameProfile, deleteProfile } from '../ui/profiles.js';
 
 export const esc = s => String(s).replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -50,6 +53,7 @@ export function homeScreen(app) {
     { id: 'play', label: 'Jogar', hint: 'escolher carro e pista' },
     { id: 'build', label: 'Construir pista', hint: 'editor com comando' },
     { id: 'sound', label: 'Som', hint: '' },
+    { id: 'profile', label: 'Perfil', hint: '' },
     { id: 'pad', label: 'Comando', hint: 'ver o que o jogo recebe' },
     { id: 'quit', label: 'Sair', hint: 'fechar a aplicação' },
   ];
@@ -68,7 +72,10 @@ export function homeScreen(app) {
   </div></div>`);
 
   const paint = () => {
-    items[2].hint = app.sound.muted ? 'desligado' : 'ligado';
+    const byId = id => items.find(it => it.id === id);
+    byId('sound').hint = app.sound.muted ? 'desligado' : 'ligado';
+    const active = listProfiles().find(p => p.id === activeProfileId());
+    byId('profile').hint = active ? active.name : '';
     el.querySelector('#menu').innerHTML = items.map((it, n) =>
       `<div class="item${n === i ? ' on' : ''}">${esc(it.label)}
         <span class="hint">${esc(it.hint)}</span></div>`).join('');
@@ -77,6 +84,7 @@ export function homeScreen(app) {
 
   return {
     el,
+    resumed: paint,   // coming back from the profiles screen, the name may have changed
     key(a) {
       if (a === 'up') { i = (i - 1 + items.length) % items.length; paint(); }
       else if (a === 'down') { i = (i + 1) % items.length; paint(); }
@@ -84,6 +92,7 @@ export function homeScreen(app) {
         const id = items[i].id;
         if (id === 'play') app.push(carScreen(app));
         else if (id === 'build') app.openEditor(null);
+        else if (id === 'profile') app.push(profilesScreen(app));
         else if (id === 'pad') app.push(padScreen(app));
         else if (id === 'quit') app.push(confirmModal({
           title: 'Fechar o Dare Stunts?',
@@ -92,6 +101,132 @@ export function homeScreen(app) {
           onYes: () => app.exit(), onNo: () => app.pop(),
         }));
         else { app.sound.setMuted(!app.sound.muted); paint(); }
+      }
+    },
+  };
+}
+
+/* --------------------------------------------------------------- profiles -- */
+
+// Local profiles: one shared television, several people, each with their own
+// car choice, records and ghosts. A rail of named cards, not a list -- the
+// same left/right-to-browse, down-for-options language as the car and track
+// pickers, so nothing about this screen has to be learned twice.
+export function profilesScreen(app) {
+  let list = listProfiles();
+  let i = Math.max(0, list.findIndex(p => p.id === activeProfileId()));
+
+  const el = node(`<div class="screen"><div class="safe">
+    <div class="eyebrow">Perfis</div>
+    <div class="rail"><div class="railinner" id="rail"></div></div>
+    ${legend([['a', 'A', 'escolher'], ['b', 'B', 'voltar'],
+              ['', '↓', 'opções'], ['', '↔', 'mudar de perfil']])}
+  </div></div>`);
+  const rail = el.querySelector('#rail');
+
+  const build = () => {
+    rail.innerHTML = list.map(p => `<div class="card" style="width:15vw">
+        <div class="cname">${esc(p.name)}</div>
+        <div class="ctag">${p.id === activeProfileId() ? 'em uso' : 'A para escolher'}</div>
+      </div>`).join('')
+      + `<div class="card" style="width:15vw">
+           <div class="cname">+ Novo perfil</div>
+           <div class="ctag">criar e dar nome</div>
+         </div>`;
+  };
+
+  const paint = () => {
+    [...rail.children].forEach((c, n) => c.classList.toggle('on', n === i));
+    centreRail(rail, i);
+  };
+
+  // After a rename, a delete, or a new profile, the rail no longer matches
+  // what is stored -- rebuilt from scratch rather than patched, the same way
+  // the track picker's own refresh() rebuilds its rail after an edit.
+  const refresh = () => {
+    list = listProfiles();
+    i = Math.min(i, list.length);   // list.length itself is the "new profile" card
+    build(); paint();
+  };
+
+  build();
+
+  const createNew = () => app.push(textEntry({
+    title: 'Nome do novo perfil', value: '', max: 18,
+    onDone: v => {
+      app.pop();
+      const id = createProfile(v || `Piloto ${list.length + 1}`);
+      app.setProfile(id);
+      refresh();
+      i = Math.max(0, list.findIndex(p => p.id === id));
+      paint();
+    },
+    onCancel: () => app.pop(),
+  }));
+
+  // A remote has no X or Y button, so renaming and deleting live behind the
+  // same "press down for options" gesture the track and piece menus use --
+  // "Escolher" repeats what A already does directly, exactly as "Correr em X"
+  // repeats what A does on the track picker itself.
+  const profileMenu = p => {
+    const items = [
+      { label: 'Escolher', run: () => { app.pop(); app.setProfile(p.id); refresh(); } },
+      { label: 'Mudar o nome', run: () => { app.pop(); app.push(textEntry({
+        title: 'Nome do perfil', value: p.name, max: 18,
+        onDone: v => { app.pop(); if (v) renameProfile(p.id, v); refresh(); },
+        onCancel: () => app.pop(),
+      })); } },
+    ];
+    // The default profile owns this game's original, unprefixed storage --
+    // there is nowhere else for that data to go, so it is the one profile
+    // that is always here and never offered for deletion.
+    if (!isDefaultProfile(p.id) && list.length > 1) {
+      items.push({ label: 'Apagar perfil', run: () => { app.pop(); app.push(confirmModal({
+        title: `Apagar "${p.name}"?`,
+        text: 'O carro escolhido, os recordes e os fantasmas deste perfil desaparecem para sempre.',
+        yes: 'Apagar', no: 'Manter',
+        onYes: () => { deleteProfile(p.id); app.pop(); refresh(); },
+        onNo: () => app.pop(),
+      })); } });
+    }
+    let n = 0;
+    const m = node(`<div class="modal"><div class="panel">
+      <h2>${esc(p.name)}</h2><div class="menu" id="mi"></div>
+      <div class="legend"><span class="a"><em>A</em>escolher</span>
+        <span class="b"><em>B</em>fechar</span></div>
+    </div></div>`);
+    const paintM = () => {
+      m.querySelector('#mi').innerHTML = items.map((it, k) =>
+        `<div class="item${k === n ? ' on' : ''}">${esc(it.label)}</div>`).join('');
+    };
+    paintM();
+    return {
+      el: m,
+      key(a) {
+        if (a === 'up') { n = (n - 1 + items.length) % items.length; paintM(); }
+        else if (a === 'down') { n = (n + 1) % items.length; paintM(); }
+        else if (a === 'ok') items[n].run();
+        else if (a === 'back') app.pop();
+      },
+    };
+  };
+
+  return {
+    el,
+    mounted: paint,          // offsetLeft is only real once the screen is in the DOM
+    resumed: refresh,
+    key(a) {
+      const n = list.length + 1;   // profiles plus the "create" card
+      if (a === 'left') { i = (i - 1 + n) % n; paint(); }
+      else if (a === 'right') { i = (i + 1) % n; paint(); }
+      else if (a === 'ok') {
+        if (i === list.length) createNew();
+        else { app.setProfile(list[i].id); refresh(); }   // "em uso" moves to this card
+      }
+      else if (a === 'back') app.pop();
+      else if (a === 'down') {
+        if (i === list.length) createNew();
+        else app.push(profileMenu(list[i]));
       }
     },
   };
@@ -266,18 +401,40 @@ export function trackScreen(app) {
     const best = getBest(t.id);
     app.push(confirmModal({
       title: `Limpar o recorde de ${t.name}?`,
-      text: `Apaga o tempo de ${formatTime(best && best.ms)} e o fantasma dessa volta.`,
+      text: `Apaga o tempo de ${formatTime(best && best.ms)}, o fantasma dessa volta`
+          + ' e a melhor volta guardada de cada carro nesta pista.',
       yes: 'Limpar', no: 'Cancelar',
       onYes: () => { clearRecord(t.id); app.pop(); refresh(); },
       onNo: () => app.pop(),
     }));
   };
 
+  // The overall record names the car that set it, but says nothing about how
+  // the other two would have done -- and picking the right car for a circuit
+  // is half the game. This is the one place all four numbers sit together.
+  const recordsScreen = t => {
+    const overall = getBest(t.id);
+    const perCar = getCarBests(t.id);
+    const el2 = node(`<div class="modal"><div class="panel">
+      <h2>Recordes &middot; ${esc(t.name)}</h2>
+      <p class="sub">Global <b>${formatTime(overall && overall.ms)}</b>${overall && overall.car
+        ? ` &middot; ${esc(carById(overall.car).name)}` : ''}</p>
+      <div class="menu" style="margin-top:1.4vh">${CARS.map(c => `
+        <div class="item" style="cursor:default">${esc(c.name)}
+          <span class="hint">${formatTime(perCar[c.id])}</span></div>`).join('')}</div>
+      ${legend([['b', 'B', 'voltar']])}
+    </div></div>`);
+    return { el: el2, key(a) { if (a === 'back') app.pop(); } };
+  };
+
   // A television remote has no X or Y button, so running, editing and deleting
   // all have to be reachable from the D-pad alone.
   const trackMenu = () => {
     const t = list[i];
-    const items = [{ label: `Correr em ${t.name}`, run: () => { app.pop(); app.startRace(t); } }];
+    const items = [
+      { label: `Correr em ${t.name}`, run: () => { app.pop(); app.startRace(t); } },
+      { label: 'Ver recordes', run: () => { app.pop(); app.push(recordsScreen(t)); } },
+    ];
     if (getBest(t.id)) {
       items.push({ label: 'Limpar o recorde', run: () => { app.pop(); askClear(t); } });
     }

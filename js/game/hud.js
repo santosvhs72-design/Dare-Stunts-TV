@@ -223,8 +223,47 @@ export class Hud {
       ticks: 4, marks: ['0', '', '1/2', '', '1'], label: 'PISTA', needle: GREEN,
     });
 
+    this.drawTurnCue(cx, cy, R, st);
     this.drawPanel(ctx, st, t, lip, band, cx - sdx - sr * 1.4, -1, slipping);
     this.drawPanel(ctx, st, t, lip, band, cx + sdx + sr * 1.4, 1, slipping);
+  }
+
+  // A co-driver's call, mounted where a real cluster mounts its own turn
+  // indicators: flanking the top of the speedometer, in the sunken ring the
+  // gauge's own hole leaves around it. Both sides sit here all the time, dim,
+  // the way an unlit indicator does -- the one the road is about to bend
+  // towards lights up, brighter the less room is left to react.
+  drawTurnCue(cx, cy, r, st) {
+    const ctx = this.ctx;
+    const dir = st.cornerDir;
+    const urg = st.cornerUrgency || 0;
+    const y = cy - r * 1.16;
+    const size = r * 0.15;
+    for (const side of [-1, 1]) {
+      const on = dir === (side < 0 ? 'l' : 'r');
+      const x = cx + side * r * 0.5;
+      ctx.beginPath();
+      if (side < 0) {
+        ctx.moveTo(x + size, y - size);
+        ctx.lineTo(x - size * 0.65, y);
+        ctx.lineTo(x + size, y + size);
+      } else {
+        ctx.moveTo(x - size, y - size);
+        ctx.lineTo(x + size * 0.65, y);
+        ctx.lineTo(x - size, y + size);
+      }
+      ctx.closePath();
+      // Unlit is a printed outline, the same language the tick marks and
+      // labels around it are drawn in -- a dim fill against the recess it
+      // sits in came out all but invisible, which read as a cue that only
+      // exists once it has something to say rather than one waiting quietly.
+      if (on) { ctx.fillStyle = tone(AMBER, 0.7 + 0.55 * urg); ctx.fill(); }
+      else {
+        ctx.strokeStyle = tone(PRINT, 0.32);
+        ctx.lineWidth = Math.max(1, r * 0.022);
+        ctx.stroke();
+      }
+    }
   }
 
   // The two outer panels: the speed in figures with its warning lamps on the

@@ -10,6 +10,7 @@ import { Sound } from '../game/audio.js';
 import { formatTime } from '../game/hud.js';
 import { carById, loadCar, saveCar } from '../game/cars.js';
 import { ghostShown, setGhostShown } from '../game/ghost.js';
+import { setActiveProfile } from '../ui/profiles.js';
 import { keyValue } from '../ui/keys.js';
 import { TvInput } from './input.js';
 import { homeScreen, node, esc } from './screens.js';
@@ -71,6 +72,15 @@ const app = {
     app.push(v);
   },
   setCar(c) { app.car = c; game.car0 = c; saveCar(c.id); },
+  // Switching profile changes whose records, ghosts and chosen car everything
+  // else reads -- profileKey() (game.js, ghost.js, cars.js) looks up the
+  // active profile fresh on every call, so nothing needs telling about the
+  // switch except the two values this shell itself is holding onto here.
+  setProfile(id) {
+    setActiveProfile(id);
+    app.car = loadCar();
+    game.car0 = app.car;
+  },
   // Closing is the one thing the page cannot do for itself: a television has no
   // window to close, so the wrapper has to be asked (see Shell in MainActivity).
   exit() {
@@ -185,14 +195,19 @@ function listModal(title, items, onBack) {
   };
 }
 
-game.onFinish = ({ time, best, record }) => {
+game.onFinish = ({ time, best, record, carRecord }) => {
   const who = best && best.car ? ` · ${carById(best.car).name}` : '';
+  const bestLine = `Recorde ${formatTime(best && best.ms)}${esc(who)} · alvo ${formatTime(game.def.target * 1000)}`;
+  // Three outcomes, not two: the overall record (unmistakable, it needs no
+  // company), a personal best with this particular car even though someone
+  // else's car still holds the track outright (worth naming, or trying a car
+  // you are not fastest with would only ever feel like losing), or neither.
+  const title = record ? 'Novo recorde!' : carRecord ? `Melhor volta com o ${esc(game.car0.name)}!` : 'Terminado';
+  const sub = record ? `Melhor tempo em ${esc(game.def.name)} com o ${esc(game.car0.name)}` : bestLine;
   const el = node(`<div class="modal"><div class="panel centered">
-    <h2>${record ? 'Novo recorde!' : 'Terminado'}</h2>
+    <h2>${title}</h2>
     <div class="bigtime">${formatTime(time)}</div>
-    <p class="sub">${record
-      ? `Melhor tempo em ${esc(game.def.name)} com o ${esc(game.car0.name)}`
-      : `Recorde ${formatTime(best && best.ms)}${esc(who)} · alvo ${formatTime(game.def.target * 1000)}`}</p>
+    <p class="sub">${sub}</p>
     <div class="menu" id="mi" style="margin-top:2vh"></div>
     <div class="legend"><span class="a"><em>A</em>escolher</span>
       <span class="pad" id="padStatus"></span></div>

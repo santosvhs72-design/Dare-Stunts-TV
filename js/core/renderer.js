@@ -45,7 +45,10 @@ function compile(gl, type, src) {
   return s;
 }
 
-export const FOG_COLOR = hex('#aac6e2');
+// Default until a track sets its own (see Game.load / world/scenery.js's sky
+// presets) -- day, the same horizon the sky always used before tracks had a
+// choice.
+const DEFAULT_FOG = hex('#aac6e2');
 
 const IDENTITY = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
@@ -80,6 +83,7 @@ export class Renderer {
     gl.disable(gl.CULL_FACE);
 
     this.light = v3.norm([0.42, 0.82, 0.38]);
+    this.fogColor = DEFAULT_FOG;
     this.fogNear = 150;
     this.fogFar = 460;
     this.cullDistance = 540;
@@ -125,7 +129,7 @@ export class Renderer {
     const gl = this.gl;
     this.resize();
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.clearColor(FOG_COLOR[0], FOG_COLOR[1], FOG_COLOR[2], 1);
+    gl.clearColor(this.fogColor[0], this.fogColor[1], this.fogColor[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     this.proj = mat4.perspective(fovDeg * Math.PI / 180, this.aspect, 0.35, 2600);
@@ -139,7 +143,7 @@ export class Renderer {
     gl.uniformMatrix4fv(this.u.uModel, false, IDENTITY);
     gl.uniform1f(this.u.uAlpha, 1);
     gl.uniform3fv(this.u.uLightDir, this.light);
-    gl.uniform3fv(this.u.uFogColor, FOG_COLOR);
+    gl.uniform3fv(this.u.uFogColor, this.fogColor);
     gl.uniform1f(this.u.uFogNear, this.fogNear);
     gl.uniform1f(this.u.uFogFar, this.fogFar);
   }

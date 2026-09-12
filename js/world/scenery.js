@@ -18,9 +18,34 @@ const rng = seed => () => {
   return ((t ^ t >>> 14) >>> 0) / 4294967296;
 };
 
-export function buildSky() {
+// One sky per track, so a circuit is recognisable from the first second
+// without reading its name -- and so three laps of the same three tracks do
+// not all look like the same time of day. Only three colours define one:
+// the smoothstep gradient below does the rest, exactly as it always did.
+//
+// The fog has to match a preset's horizon exactly (see skyFogColor), or the
+// distance where scenery fades out would show as a seam against the sky
+// behind it. skyAmbient nudges the world's own lighting floor to match the
+// mood -- never far, since the road still has to be as easy to read as at
+// midday.
+export const SKY_PRESETS = {
+  dia: {
+    zenith: '#3f6ea8', horizon: '#aac6e2', below: '#6f8a63', ambient: 1,
+  },
+  entardecer: {
+    zenith: '#7a5088', horizon: '#e7a066', below: '#5c6a48', ambient: 0.94,
+  },
+  crepusculo: {
+    zenith: '#232c5e', horizon: '#9678ad', below: '#3a4a3e', ambient: 0.88,
+  },
+};
+
+const skyOf = id => SKY_PRESETS[id] || SKY_PRESETS.dia;
+
+export function buildSky(presetId) {
   const md = new MeshData();
-  const zenith = hex('#3f6ea8'), horizon = hex('#aac6e2'), below = hex('#6f8a63');
+  const p = skyOf(presetId);
+  const zenith = hex(p.zenith), horizon = hex(p.horizon), below = hex(p.below);
   const lon = 20, lat = 12;
   const colAt = y => y >= 0
     ? v3.lerp(horizon, zenith, smoothstep(y * 1.35))
@@ -40,6 +65,9 @@ export function buildSky() {
   }
   return md;
 }
+
+export const skyFogColor = presetId => hex(skyOf(presetId).horizon);
+export const skyAmbient = presetId => skyOf(presetId).ambient;
 
 export function buildGround(bounds) {
   const tile = 28, margin = 460, chunkTiles = 9;

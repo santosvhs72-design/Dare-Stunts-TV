@@ -16,6 +16,7 @@
 import { v3, quat, mat4 } from '../core/math.js';
 import { MeshData, hex, shade } from '../core/mesh.js';
 import { MODE } from './car.js';
+import { profileKey } from '../ui/profiles.js';
 
 // How the ghost is painted. It is a hint about a line, not a car in the race,
 // so it stays faint enough to see the road through it; the raised ambient keeps
@@ -24,7 +25,7 @@ export const GHOST_ALPHA = 0.12;
 export const GHOST_AMBIENT = 0.68;
 
 export const STEP_MS = 50;          // 20 Hz; the line is smooth between samples
-const KEY = id => `velocidadecega.ghost.${id}`;
+const KEY = id => profileKey(`ghost.${id}`);
 const MAX_MS = 10 * 60 * 1000;      // refuse to grow without bound on a stuck run
 
 const STRIDE = 5;    // s, lateral, height, forward, heading

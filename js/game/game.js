@@ -1,6 +1,6 @@
 import { Renderer } from '../core/renderer.js';
 import { buildTrack } from '../world/track.js';
-import { buildSky, buildGround, buildScenery } from '../world/scenery.js';
+import { buildSky, buildGround, buildScenery, skyFogColor, skyAmbient } from '../world/scenery.js';
 import { Car, MODE, gearFor } from './car.js';
 import { CARS } from './cars.js';
 import { Hud } from './hud.js';
@@ -8,8 +8,10 @@ import { clamp } from '../core/math.js';
 import { GhostRecorder, GhostPlayer, buildGhostMesh, ghostModelMatrix,
          loadGhost, saveGhost, clearGhost,
          GHOST_ALPHA, GHOST_AMBIENT } from './ghost.js';
+import { profileKey } from '../ui/profiles.js';
 
-const bestKey = id => `velocidadecega.best.${id}`;
+const bestKey = id => profileKey(`best.${id}`);
+const carBestKey = id => profileKey(`carbest.${id}`);
 
 // Records are per track, not per car: picking the right car for the circuit is
 // part of the game, so the record names the car that set it. Older records were
@@ -22,12 +24,41 @@ export function getBest(id) {
   try { return JSON.parse(v); } catch { return null; }
 }
 
-// Wiping a record means both halves of it: the time and the lap that set it.
-// Leaving the ghost behind would put a car on the road with nothing to compare
-// it against, and loadGhostFor would then keep it forever -- it only discards a
-// ghost that is *slower* than a stored record, and there would be none.
+// The overall record names its car, but says nothing about how the other two
+// would have done -- and picking the right car for a circuit is half the
+// game. One best time per car, alongside the single overall one, so a lap
+// with the Tenaz can be judged against your own previous laps with the Tenaz,
+// not just against whichever car happens to hold the track outright.
+export function getCarBests(id) {
+  try {
+    const v = JSON.parse(localStorage.getItem(carBestKey(id)));
+    return v && typeof v === 'object' ? v : {};
+  } catch { return {}; }
+}
+
+export function getCarBest(id, carId) {
+  const ms = getCarBests(id)[carId];
+  return ms != null ? { ms } : null;
+}
+
+function saveCarBest(id, carId, ms) {
+  const all = getCarBests(id);
+  const rounded = Math.round(ms);
+  if (all[carId] != null && all[carId] <= rounded) return;
+  all[carId] = rounded;
+  try { localStorage.setItem(carBestKey(id), JSON.stringify(all)); } catch { /* private mode */ }
+}
+
+// Wiping a record means every shape it comes in: the overall time, the
+// per-car times, and the lap that set the overall one. Leaving the ghost
+// behind would put a car on the road with nothing to compare it against, and
+// loadGhostFor would then keep it forever -- it only discards a ghost that is
+// *slower* than a stored record, and there would be none.
 export function clearRecord(id) {
-  try { localStorage.removeItem(bestKey(id)); } catch { /* ignore */ }
+  try {
+    localStorage.removeItem(bestKey(id));
+    localStorage.removeItem(carBestKey(id));
+  } catch { /* ignore */ }
   clearGhost(id);
 }
 
@@ -73,8 +104,14 @@ export class Game {
 
     const track = buildTrack(def);
     this.track = track;
+    // The fog has to match the sky's own horizon (see skyFogColor), or the
+    // distance where scenery fades out shows as a seam against the sky behind
+    // it -- so it is set here, once, rather than left at the renderer's
+    // built-in default.
+    r.fogColor = skyFogColor(def.sky);
+    this.ambient = skyAmbient(def.sky);
     this.chunks = {
-      sky: r.upload(buildSky()),
+      sky: r.upload(buildSky(def.sky)),
       ground: buildGround(track.bounds).map(m => r.upload(m)),
       scenery: buildScenery(track).map(m => r.upload(m)),
       road: track.roadMeshes.map(m => r.upload(m)),
@@ -174,6 +211,37 @@ export class Game {
     this.render(dt);
   }
 
+  // A co-driver's call: which way, and how urgently, the road ahead needs more
+  // lock than it currently has. Judged the same way the editor's autopilot
+  // judges a bend -- the grip this car actually has against the curvature
+  // coming up -- so the cue agrees with what the car can hold, car for car,
+  // rather than flagging every gentle bend at any speed.
+  //
+  // Only a corner already too tight for the current speed counts, and how far
+  // off is blended with how close it is: a hairpin ten car-lengths back on a
+  // straight is nothing yet, and the same bend once braking should already
+  // have started is everything.
+  cornerAhead() {
+    const car = this.car;
+    if (car.mode !== MODE.ROAD) return null;
+    const absV = Math.max(Math.abs(car.v), 6);
+    const ahead = Math.min(90, absV * 1.6 + 18);
+    const grip = this.car0.phys.mu * 9.81;
+    let best = null;
+    for (let d = 8; d < ahead; d += 6) {
+      const g = this.track.frameAt(Math.min(car.s + d, this.track.length - 1));
+      const k = Math.abs(g.kRight);
+      if (k < 2e-4) continue;
+      const vSafe = Math.sqrt(grip / k);
+      if (vSafe >= absV * 1.08) continue;   // this bend is not a problem yet
+      const overspeed = clamp((absV - vSafe) / absV, 0, 1);
+      const closeness = 1 - d / ahead;
+      const urgency = overspeed * 0.6 + closeness * 0.4;
+      if (!best || urgency > best.urgency) best = { dir: g.kRight > 0 ? 'r' : 'l', urgency };
+    }
+    return best && best.urgency > 0.15 ? best : null;
+  }
+
   // How far ahead or behind the record holder you are, in milliseconds:
   // positive means the ghost reached this point sooner, so you are losing.
   updateGhostDelta() {
@@ -210,6 +278,13 @@ export class Game {
     this.finalTime = this.timeMs;
     const prev = getBest(this.def.id);
     this.newRecord = prev == null || this.finalTime < prev.ms;
+    // Kept apart from the overall record: a lap that beats your own previous
+    // best with this car still means something even when a different car
+    // already holds the track outright, and staying quiet about it would make
+    // trying a car you are not fastest with feel pointless.
+    const prevCar = getCarBest(this.def.id, this.car0.id);
+    const newCarRecord = prevCar == null || this.finalTime < prevCar.ms;
+    if (newCarRecord) saveCarBest(this.def.id, this.car0.id, this.finalTime);
     if (this.newRecord) {
       saveBest(this.def.id, this.finalTime, this.car0.id);
       this.best = { ms: Math.round(this.finalTime), car: this.car0.id };
@@ -224,7 +299,12 @@ export class Game {
       }
     }
     if (this.sound) this.sound.finish(this.newRecord);
-    this.onFinish({ time: this.finalTime, best: this.best, record: this.newRecord });
+    this.onFinish({
+      time: this.finalTime, best: this.best, record: this.newRecord,
+      // Worth telling apart from the overall record only when it is not also
+      // one: "new record" already implies a new personal best with this car.
+      carRecord: newCarRecord && !this.newRecord,
+    });
   }
 
   render(dt) {
@@ -235,11 +315,15 @@ export class Game {
     const r = this.renderer;
     r.beginFrame(car.camQuat, car.camPos, this.fov);
     r.drawSky(this.chunks.sky);
-    r.draw(this.chunks.ground, 0.66);
-    r.draw(this.chunks.scenery, 0.58);
-    r.draw(this.chunks.road, 0.72);
-    r.draw(this.chunks.tunnel, 0.5);   // darker, so a bore feels enclosed
-    r.draw(this.chunks.gates, 0.66);
+    // A dusk or twilight preset lowers this a little, never far: the ambient
+    // term is a brightness floor (see the shader in core/renderer.js), and the
+    // road still has to be as easy to read as it is at midday.
+    const amb = this.ambient || 1;
+    r.draw(this.chunks.ground, 0.66 * amb);
+    r.draw(this.chunks.scenery, 0.58 * amb);
+    r.draw(this.chunks.road, 0.72 * amb);
+    r.draw(this.chunks.tunnel, 0.5 * amb);   // darker, so a bore feels enclosed
+    r.draw(this.chunks.gates, 0.66 * amb);
 
     // Drawn last, over the finished scene, because it is blended.
     if (this.showGhost && this.ghost && this.ghostChunk
@@ -268,6 +352,9 @@ export class Game {
     const speed = car.speedKmh;
     const topKmh = this.car0.phys.vmax * 3.6;
     const { gear, rpm } = gearFor(speed, topKmh);
+    // Only worth a call while actually racing: it would be noise over the
+    // countdown, and meaningless once the car has stopped or come off.
+    const corner = this.state === STATE.RACING ? this.cornerAhead() : null;
 
     if (this.sound) {
       this.sound.update({
@@ -293,6 +380,8 @@ export class Game {
       throttle: this.input.throttle,
       brake: this.input.brake,
       slip: car.slip,
+      cornerDir: corner ? corner.dir : null,
+      cornerUrgency: corner ? corner.urgency : 0,
       timeMs: this.timeMs,
       bestMs: this.best ? this.best.ms : null,
       cpDone: this.cpIndex,
