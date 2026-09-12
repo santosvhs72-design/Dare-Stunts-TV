@@ -8,7 +8,7 @@ import { CARS, carById } from '../game/cars.js';
 import { TRACKS } from '../world/tracks.js';
 import { getBest, getCarBests, clearRecord } from '../game/game.js';
 import { formatTime } from '../game/hud.js';
-import { loadCustom, deleteCustom } from '../world/customtracks.js';
+import { loadCustom, loadShared, deleteCustom, setTrackShared } from '../world/customtracks.js';
 import { walkTrack } from '../world/track.js';
 import { drawTrackMap } from './map.js';
 import { keyName } from '../ui/keys.js';
@@ -329,41 +329,73 @@ export function carScreen(app) {
 
 /* ------------------------------------------------------------ track pick -- */
 
-export function trackScreen(app) {
-  let list = allTracks();
+// One screen serves two purposes: the normal picker (official tracks plus
+// this profile's own, exactly as it always was) and, pushed on top of it, a
+// second visit to the very same screen showing what other profiles have
+// shared -- reached through a trailing card in the first rail, the same way
+// profilesScreen ends its own rail with a card for creating a new profile.
+// Almost everything -- the map thumbnails, the record shown, the menu that
+// opens on ↓ -- is identical either way; `shared` only changes where the
+// list comes from and which of that menu's actions make sense for a track
+// that belongs to somebody else.
+export function trackScreen(app, { shared = false } = {}) {
+  let list = shared ? loadShared() : allTracks();
   let i = 0;
   const walks = new Map();
+  // The trailing "Pistas partilhadas" card only exists on the first visit --
+  // the shared screen has nothing further to lead to.
+  const slots = () => list.length + (shared ? 0 : 1);
 
   const el = node(`<div class="screen"><div class="safe">
-    <div class="eyebrow">Escolhe a pista &middot; <span id="carname"></span></div>
+    <div class="eyebrow">${shared ? 'Pistas partilhadas' : 'Escolhe a pista'}
+      &middot; <span id="carname"></span></div>
+    <p class="sub" id="empty" style="display:none;max-width:44vw"></p>
     <div class="rail"><div class="railinner" id="rail"></div></div>
     <div id="lg"></div>
   </div></div>`);
   el.querySelector('#carname').textContent = app.car.name;
 
   const rail = el.querySelector('#rail');
+  const emptyMsg = el.querySelector('#empty');
+
+  const trackCard = t => {
+    const best = getBest(t.id);
+    const who = best && best.car ? ` &middot; ${esc(carById(best.car).name)}` : '';
+    // The record card already names whichever car set the track record; next
+    // to it, the same figure for the car already chosen on the previous
+    // screen -- so a lap with a car that has never held the track outright
+    // still has something of its own to aim at, without opening the full
+    // per-car breakdown just to see it.
+    const mine = getCarBests(t.id)[app.car.id];
+    // "Tua" only means something on this profile's own list; a track found
+    // through loadShared() is never that, so the chip says whose it is
+    // instead of claiming it as this profile's difficulty tier.
+    const chipLabel = t.ownerName ? 'Partilhada' : t.diffLabel;
+    return `<div class="card tcard">
+      <canvas></canvas>
+      <div class="cname">${esc(t.name)}</div>
+      <div class="ctag"><span class="chip d${t.difficulty}">${esc(chipLabel)}</span>
+        ${t.ownerName ? ` &middot; por ${esc(t.ownerName)}` : ''}</div>
+      <div class="cbest">${esc(t.desc)}</div>
+      <div class="meta"><span>Alvo <b>${formatTime(t.target * 1000)}</b></span>
+        <span>Recorde <b>${formatTime(best && best.ms)}</b>${who}</span></div>
+      <div class="meta"><span>Contigo (${esc(app.car.name)}) <b>${formatTime(mine)}</b></span></div>
+    </div>`;
+  };
+
+  // Not a track at all: a door to the shared list, the same way
+  // profilesScreen ends its rail with a card for creating a new profile.
+  const shareCard = () => {
+    const n = loadShared().length;
+    return `<div class="card tcard" style="display:flex;flex-direction:column;
+        justify-content:center;align-items:center;text-align:center">
+      <div class="cname">Pistas partilhadas</div>
+      <div class="ctag">${n ? `${n} pista${n > 1 ? 's' : ''} de outros perfis` : 'ainda nenhuma'}</div>
+    </div>`;
+  };
 
   const build = () => {
-    rail.innerHTML = list.map(t => {
-      const best = getBest(t.id);
-      const who = best && best.car ? ` &middot; ${esc(carById(best.car).name)}` : '';
-      // The record card already names whichever car set the track record; next
-      // to it, the same figure for the car already chosen on the previous
-      // screen -- so a lap with a car that has never held the track outright
-      // still has something of its own to aim at, without opening the full
-      // per-car breakdown just to see it.
-      const mine = getCarBests(t.id)[app.car.id];
-      return `<div class="card tcard">
-        <canvas></canvas>
-        <div class="cname">${esc(t.name)}</div>
-        <div class="ctag"><span class="chip d${t.difficulty}">${esc(t.diffLabel)}</span></div>
-        <div class="cbest">${esc(t.desc)}</div>
-        <div class="meta"><span>Alvo <b>${formatTime(t.target * 1000)}</b></span>
-          <span>Recorde <b>${formatTime(best && best.ms)}</b>${who}</span></div>
-        <div class="meta"><span>Contigo (${esc(app.car.name)}) <b>${formatTime(mine)}</b></span></div>
-      </div>`;
-    }).join('');
-
+    rail.innerHTML = list.map(trackCard).join('') + (shared ? '' : shareCard());
   };
 
   // Drawing needs real element sizes, which only exist once the screen is in
@@ -371,6 +403,7 @@ export function trackScreen(app) {
   const drawMaps = () => {
     [...rail.children].forEach((card, n) => {
       const t = list[n];
+      if (!t) return;   // the trailing "Pistas partilhadas" card has no map
       // Walking a 4 km track into frames is real work, so each track is walked
       // once and the result kept for as long as the screen lives.
       if (!walks.has(t.id)) {
@@ -383,10 +416,19 @@ export function trackScreen(app) {
   const paint = () => {
     [...rail.children].forEach((c, n) => c.classList.toggle('on', n === i));
     centreRail(rail, i);
-    const custom = list[i] && list[i].custom;
-    el.querySelector('#lg').innerHTML = legend(custom
-      ? [['a', 'A', 'correr'], ['b', 'B', 'voltar'], ['x', 'X', 'editar'], ['y', 'Y', 'apagar'],
-         ['', '↓', 'opções']]
+    // A shared list can genuinely be empty -- nobody else on this television
+    // has shared anything yet -- and that is worth saying, rather than
+    // leaving the rail looking like it failed to load.
+    emptyMsg.style.display = shared && !list.length ? '' : 'none';
+    emptyMsg.textContent = 'Ainda ninguém partilhou uma pista contigo. Um '
+      + 'outro perfil pode partilhar a que construiu no menu da pista dele (↓).';
+    const onShareCard = !shared && i === list.length;
+    const mine = !shared && list[i] && list[i].custom;
+    el.querySelector('#lg').innerHTML = legend(
+      !list.length ? [['b', 'B', 'voltar']]
+      : onShareCard ? [['a', 'A', 'ver'], ['b', 'B', 'voltar']]
+      : mine ? [['a', 'A', 'correr'], ['b', 'B', 'voltar'], ['x', 'X', 'editar'], ['y', 'Y', 'apagar'],
+                ['', '↓', 'opções']]
       : [['a', 'A', 'correr'], ['b', 'B', 'voltar'], ['', '↓', 'opções']]);
     app.paintPad();
   };
@@ -435,9 +477,14 @@ export function trackScreen(app) {
   };
 
   // A television remote has no X or Y button, so running, editing and deleting
-  // all have to be reachable from the D-pad alone.
+  // all have to be reachable from the D-pad alone. A track found through
+  // loadShared() only ever offers what makes sense to someone who is not its
+  // owner: running it, seeing records, clearing your own. Editing, deleting
+  // and the share switch itself stay with whoever built it.
   const trackMenu = () => {
     const t = list[i];
+    // A label may be a function, so "Partilhar" can show the choice it is
+    // about to flip without the menu having to be closed and reopened.
     const items = [
       { label: `Correr em ${t.name}`, run: () => { app.pop(); app.startRace(t); } },
       { label: 'Ver recordes', run: () => { app.pop(); app.push(recordsScreen(t)); } },
@@ -445,7 +492,9 @@ export function trackScreen(app) {
     if (getBest(t.id)) {
       items.push({ label: 'Limpar o recorde', run: () => { app.pop(); askClear(t); } });
     }
-    if (t.custom) {
+    if (!shared && t.custom) {
+      items.push({ label: () => `Partilhar: ${t.shared ? 'sim' : 'não'}`,
+        run: () => { setTrackShared(t.id, !t.shared); t.shared = !t.shared; paintM(); } });
       items.push({ label: 'Editar esta pista', run: () => { app.pop(); app.openEditor(t); } });
       items.push({ label: 'Apagar esta pista', run: () => { app.pop(); askDelete(); } });
     }
@@ -457,7 +506,8 @@ export function trackScreen(app) {
     </div></div>`);
     const paintM = () => {
       m.querySelector('#mi').innerHTML = items.map((it, k) =>
-        `<div class="item${k === n ? ' on' : ''}">${esc(it.label)}</div>`).join('');
+        `<div class="item${k === n ? ' on' : ''}">${esc(
+          typeof it.label === 'function' ? it.label() : it.label)}</div>`).join('');
     };
     paintM();
     return {
@@ -472,8 +522,8 @@ export function trackScreen(app) {
   };
 
   const refresh = () => {
-    list = allTracks();
-    i = Math.min(i, Math.max(0, list.length - 1));
+    list = shared ? loadShared() : allTracks();
+    i = Math.min(i, Math.max(0, slots() - 1));
     build(); drawMaps(); paint();
   };
 
@@ -482,16 +532,19 @@ export function trackScreen(app) {
   return {
     el,
     mounted: () => { drawMaps(); paint(); },
-    resumed: refresh,        // coming back from the editor, the list may have changed
+    resumed: refresh,        // coming back from the editor or the share toggle
     key(a) {
-      if (!list.length) { if (a === 'back') app.pop(); return; }
-      if (a === 'left') { i = (i - 1 + list.length) % list.length; paint(); }
-      else if (a === 'right') { i = (i + 1) % list.length; paint(); }
-      else if (a === 'ok') app.startRace(list[i]);
+      if (!slots()) { if (a === 'back') app.pop(); return; }
+      if (a === 'left') { i = (i - 1 + slots()) % slots(); paint(); }
+      else if (a === 'right') { i = (i + 1) % slots(); paint(); }
+      else if (a === 'ok' || a === 'down') {
+        if (i === list.length) { app.push(trackScreen(app, { shared: true })); return; }
+        if (a === 'ok') app.startRace(list[i]);
+        else app.push(trackMenu());
+      }
       else if (a === 'back') app.pop();
-      else if (a === 'x' && list[i].custom) app.openEditor(list[i]);
-      else if (a === 'y' && list[i].custom) askDelete();
-      else if (a === 'down') app.push(trackMenu());
+      else if (a === 'x' && list[i] && list[i].custom) app.openEditor(list[i]);
+      else if (a === 'y' && list[i] && list[i].custom) askDelete();
     },
   };
 }

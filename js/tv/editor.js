@@ -15,7 +15,7 @@
 import { PIECE_TYPES, defaults, describe } from '../world/pieces.js';
 import { walkTrack, buildTrack } from '../world/track.js';
 import { testDrive } from '../editor/autopilot.js';
-import { trackDefFrom, saveCustom } from '../world/customtracks.js';
+import { trackDefFrom, saveCustom, loadCustom, setTrackShared } from '../world/customtracks.js';
 import { node, esc, confirmModal } from './screens.js';
 import { getBest, clearRecord } from '../game/game.js';
 import { formatTime } from '../game/hud.js';
@@ -310,6 +310,15 @@ export function editorScreen(app, def) {
     }));
   };
 
+  // Whether the track being edited is shared, read fresh from storage rather
+  // than kept in a variable here: sharing is a property of the saved track,
+  // and this screen already treats editingId as the source of truth for
+  // everything else about it (see the record check just below).
+  const isShared = () => {
+    const t = editingId && loadCustom().find(x => x.id === editingId);
+    return !!(t && t.shared);
+  };
+
   const menuModal = () => {
     const items = [
       { label: 'Testar com o ' + app.car.name, run: () => { app.pop(); runTest(); } },
@@ -324,11 +333,16 @@ export function editorScreen(app, def) {
         })); } },
       { label: 'Sair do construtor', run: () => { app.pop(); exit(); } },
     ];
-    // Only once the track has been saved is there a record to speak of, and
-    // changing the layout is exactly when the old time stops meaning anything.
+    // Only once the track has been saved is there anything to share or a
+    // record to speak of -- and changing the layout is exactly when the old
+    // time stops meaning anything.
+    if (editingId) {
+      items.splice(4, 0, { label: () => `Partilhar: ${isShared() ? 'sim' : 'não'}`,
+        run: () => { setTrackShared(editingId, !isShared()); paintM(); } });
+    }
     const best = editingId && getBest(editingId);
     if (best) {
-      items.splice(4, 0, { label: 'Limpar o recorde', run: () => { app.pop(); app.push(confirmModal({
+      items.splice(5, 0, { label: 'Limpar o recorde', run: () => { app.pop(); app.push(confirmModal({
         title: 'Limpar o recorde?',
         text: `Apaga o tempo de ${formatTime(best.ms)}, o fantasma dessa volta`
             + ' e a melhor volta guardada de cada carro nesta pista.',
@@ -345,7 +359,8 @@ export function editorScreen(app, def) {
     </div></div>`);
     const paintM = () => {
       m.querySelector('#mi').innerHTML = items.map((it, n) =>
-        `<div class="item${n === i ? ' on' : ''}">${esc(it.label)}</div>`).join('');
+        `<div class="item${n === i ? ' on' : ''}">${esc(
+          typeof it.label === 'function' ? it.label() : it.label)}</div>`).join('');
     };
     paintM();
     return {

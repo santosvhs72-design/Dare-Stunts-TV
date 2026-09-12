@@ -30,6 +30,11 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   seu próprio carro escolhido, recordes e fantasmas; o padrão (Piloto 1) usa as
   mesmas chaves de sempre, por isso quem nunca abrir "Perfil" no menu inicial
   nem repara que existe.
+- **Pistas privadas por omissão**: uma pista construída só aparece para quem a
+  construiu. O autor decide se a partilha ("Partilhar: sim/não", no menu da
+  pista ou no do construtor); partilhada, os outros perfis passam a vê-la numa
+  secção "Pistas partilhadas" própria, com o nome de quem a fez — mas só o
+  autor a pode editar, apagar ou deixar de partilhar.
 - **Aviso de curva**: duas setas por cima do velocímetro, como os piscas de um
   automóvel a sério, acendem para o lado de uma curva que a velocidade actual
   já não permite fazer — quanto mais tarde, mais forte.
@@ -41,6 +46,8 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
 - **Cockpit ao estilo de 1990**: painéis planos, mostradores redondos com
   ponteiro e números impressos, e nada de gradientes — porque o Stunts também
   não os tinha.
+- **Som ao navegar**: um clique curto sempre que o realce muda de item num
+  menu ou numa fila — nunca ao conduzir, onde as mesmas teclas viram o volante.
 
 ## Compilar
 
@@ -86,6 +93,8 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Ver o que o comando envia | menu inicial &rarr; Comando | idem |
 | Trocar ou criar perfil | menu inicial &rarr; Perfil | idem |
 | Ver recordes de uma pista | seletor de pistas &rarr; ↓ &rarr; Ver recordes | idem |
+| Partilhar uma pista tua | seletor de pistas &rarr; ↓ &rarr; Partilhar | idem |
+| Ver pistas partilhadas | seletor de pistas &rarr; última pista da fila | idem |
 | Fechar a aplicação | menu inicial &rarr; Sair, ou Voltar | idem |
 
 A conduzir: RT acelera, LT trava, stick esquerdo vira, A é travão de mão.
@@ -125,6 +134,13 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   (`velocidadecega.<...>`). Sem essa excepção, instalar esta versão por cima de
   uma anterior faria os recordes já guardados desaparecerem — ficariam à espera
   de um perfil `default` que nunca existiu.
+- **Não há um registo de perfis partilhados — só uma busca.** Uma pista
+  partilhada continua guardada só na chave do seu autor
+  (`velocidadecega.<id>.tracks`); para as encontrar, `loadShared()`
+  (`world/customtracks.js`) percorre todas as chaves `*.tracks` que existem em
+  vez de consultar uma lista à parte, a mesma técnica que `js/ui/profiles.js`
+  já usa para apagar os dados de um perfil apagado. Menos um sítio onde a
+  partilha e o dono se poderiam desincronizar.
 - **O nevoeiro tem de ser a cor do horizonte do céu, não uma cor fixa.** Cada
   pista escolhe um céu (`sky` em `world/tracks.js`); se o nevoeiro não mudasse
   com ele, o sítio onde o cenário se apaga ao longe ficava com uma costura
