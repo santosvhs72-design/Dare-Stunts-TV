@@ -347,6 +347,12 @@ export function trackScreen(app) {
     rail.innerHTML = list.map(t => {
       const best = getBest(t.id);
       const who = best && best.car ? ` &middot; ${esc(carById(best.car).name)}` : '';
+      // The record card already names whichever car set the track record; next
+      // to it, the same figure for the car already chosen on the previous
+      // screen -- so a lap with a car that has never held the track outright
+      // still has something of its own to aim at, without opening the full
+      // per-car breakdown just to see it.
+      const mine = getCarBests(t.id)[app.car.id];
       return `<div class="card tcard">
         <canvas></canvas>
         <div class="cname">${esc(t.name)}</div>
@@ -354,6 +360,7 @@ export function trackScreen(app) {
         <div class="cbest">${esc(t.desc)}</div>
         <div class="meta"><span>Alvo <b>${formatTime(t.target * 1000)}</b></span>
           <span>Recorde <b>${formatTime(best && best.ms)}</b>${who}</span></div>
+        <div class="meta"><span>Contigo (${esc(app.car.name)}) <b>${formatTime(mine)}</b></span></div>
       </div>`;
     }).join('');
 
