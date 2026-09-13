@@ -17,6 +17,12 @@ const BRAKE_SHARE = 0.15;   // ... and how much braking does, nose-down and load
 // bars meant nothing. The cap still bites where grip really is gone: on the
 // kerb, and over a crest where there is no weight on the wheels at all.
 const BRAKE_GRIP = 1.35;
+// How much harder the air pushes back on a car standing on its brakes than on
+// one merely coasting. The friction part of a stop is the same at any speed, so
+// on its own it takes speed out in a straight line and the first moment of a
+// stop from the top of sixth feels like nothing is happening. This term is the
+// one that grows with speed, and it is what makes the start of the stop bite.
+const BRAKE_DRAG = 3;
 const HANDBRAKE_HOLD = 0.5; // fraction of cornering grip left when it is pulled
 const HANDBRAKE_YAW = 1.7;  // rad/s of extra rotation as the rear steps out
 const VU_DECAY = 3.2;       // how fast the tyres scrub a slide off
@@ -158,17 +164,28 @@ export class Car {
     // Longitudinal
     const heading = v3.add(v3.scale(f.fwd, Math.cos(this.psi)), v3.scale(f.right, Math.sin(this.psi)));
     let aLong = -G * heading[1];
-    if (input.throttle > 0) {
-      aLong += input.throttle * P.accel * Math.max(0, 1 - absV / P.vmax) * (this.onCurb ? 0.85 : 1);
+    // The brake wins over the throttle, as it does in the pedal box of any car
+    // built this century. It matters more here than in a car: a button is not a
+    // pedal, the throttle is held down out of habit, and letting the engine
+    // push against the brake was quietly eating a third of the stop.
+    const throttle = input.brake > 0 ? 0 : input.throttle;
+    if (throttle > 0) {
+      aLong += throttle * P.accel * Math.max(0, 1 - absV / P.vmax) * (this.onCurb ? 0.85 : 1);
     }
     if (input.brake > 0) {
       const bmax = Math.min(P.brake, aLatMax * BRAKE_GRIP);
       if (v > 0.4) aLong -= input.brake * bmax;
       else aLong -= input.brake * P.accel * 0.45;   // reverse
     }
-    // Only on a closed throttle, so this never caps top speed.
-    if (input.throttle === 0 && input.brake === 0) {
-      aLong -= Math.sign(v) * (P.coastBase + P.coastDrag * v * v);
+    // Engine braking and air resistance do not stop existing because the brake
+    // went down -- and they are the part that scales with speed, so they are
+    // what makes the first moment of a stop from top speed bite hardest. Left
+    // out of a braking car, as they were, the brake lost the one thing that
+    // lifting off still had. Closed throttle is the condition, not an idle
+    // pedal, so this still never caps top speed.
+    if (throttle === 0) {
+      const drag = P.coastDrag * v * v * (input.brake > 0 ? BRAKE_DRAG : 1);
+      aLong -= Math.sign(v) * (P.coastBase + drag);
     }
     if (this.onCurb) aLong -= Math.sign(v) * 1.6;
     if (handbrake) aLong -= Math.sign(v) * 7;

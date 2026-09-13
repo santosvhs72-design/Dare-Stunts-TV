@@ -212,7 +212,20 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   21 m/s², pela mesma ordem das barras. O corte continua a morder onde a
   aderência de facto desapareceu: na berma, e no alto de uma lomba onde não há
   peso nenhum nas rodas. Travar de 200 para 80 km/h passou de uma eternidade
-  para 81 m no Speed King, contra 330 m só a largar o acelerador.
+  para 59 m no Speed King, contra 330 m só a largar o acelerador.
+- **O arrasto do ar não se desliga por se carregar no travão.** O termo de
+  resistência só corria com *os dois pedais soltos*, por isso tocar no travão
+  fazia perder a travagem do motor e do ar que se tinha só por largar o pé --
+  e é precisamente essa a parte que cresce com a velocidade. A fricção dos
+  travões é igual a qualquer velocidade e sozinha tira velocidade em linha
+  reta, o que faz o primeiro instante de uma travagem do topo da sexta
+  parecer que não acontece nada. Agora a condição é o acelerador estar
+  fechado, e com o nariz em travagem o ar conta `BRAKE_DRAG` vezes mais: o
+  Speed King tira 26 km/h no primeiro quarto de segundo a 274 km/h, e vai
+  aliviando à medida que abranda. O travão também ganha ao acelerador quando
+  os dois estão premidos, como em qualquer carro deste século — com um
+  comando o acelerador é um botão que se segura por hábito, e deixá-lo
+  empurrar contra o travão comia um terço da travagem.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem
