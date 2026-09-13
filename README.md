@@ -163,6 +163,18 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   não fosse modal, e é exactamente esse comportamento, já ali, que tira o
   fundo escuro do resultado da volta e mostra a pista em vez dele -- sem
   precisar de um caso especial só para isto.
+- **Travar tem de custar aderência ao aviso, não só à física.** Travagem e
+  curva partilham o mesmo orçamento de atrito (`car.js`): quanto mais forte
+  o travão, menos resta para virar, e é por isso que travar tarde demais para
+  dentro de uma curva pode fazer o carro fugir em frente mesmo a uma
+  velocidade que, a acelerador solto, seria perfeitamente segura. Só que o
+  aviso de perda de aderência comparava a curva com o aderência *teórica*
+  do pneu (`aLatMax`), não com o que sobrava depois de travar -- por isso o
+  carro perdia aderência sem qualquer aviso sempre que a causa era o travão
+  e não a velocidade. `this.understeer` agora compara com o mesmo orçamento
+  já reduzido (`grip`) que a própria direcção usa para limitar o volante,
+  para que o aviso apareça exactamente quando -- e porque -- a aderência
+  falha.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem

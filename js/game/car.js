@@ -146,20 +146,6 @@ export class Car {
     const aLatMax = (this.onCurb ? P.muCurb : P.mu) * Math.max(N, 0.4);
     const handbrake = input.handbrake && absV > 2 ? 1 : 0;
 
-    // Understeer: whether the corner is possible at all at this speed. Staying
-    // on the road asks for v^2 * curvature of lateral acceleration and the tyres
-    // can give aLatMax; past that the car runs wide however far the wheel is
-    // turned, which is the one thing a driver has to be told.
-    //
-    // It has to be measured here, from the road, because nothing downstream can
-    // see it. The steering lock below is capped at what grip allows, so the
-    // tyres are never *asked* for more than they can give and `excess` -- the
-    // sliding term -- stays exactly zero through a corner taken far too fast.
-    // Understeer in this simulation is the car quietly refusing to turn, and
-    // that refusal leaves no trace anywhere else.
-    const demand = v * v * Math.abs(f.kRight) / Math.max(aLatMax, 1);
-    this.understeer = clamp((demand - 0.95) / 0.3, 0, 1);
-
     // Longitudinal
     const heading = v3.add(v3.scale(f.fwd, Math.cos(this.psi)), v3.scale(f.right, Math.sin(this.psi)));
     let aLong = -G * heading[1];
@@ -188,6 +174,23 @@ export class Car {
     // the throttle was down, which is to say almost always: a permanent slide.
     const used = Math.min(Math.abs(aLong), aLatMax);
     const grip = Math.sqrt(Math.max(0, aLatMax * aLatMax - used * used * GRIP_SHARE));
+
+    // Understeer: whether the corner is possible at all against what grip is
+    // left, not the tyres' theoretical best -- braking (or accelerating) hard
+    // already spends part of the very same budget the steering lock below
+    // draws from, so trail-braking into a bend can cost real cornering power
+    // before the wheel is ever turned. Measured against `grip` rather than
+    // `aLatMax`, or braking into a corner that was only ever safe at full
+    // grip would understeer with nothing telling the driver why.
+    //
+    // It has to be measured here, from the road, because nothing downstream can
+    // see it. The steering lock below is capped at what grip allows, so the
+    // tyres are never *asked* for more than they can give and `excess` -- the
+    // sliding term -- stays exactly zero through a corner taken far too fast.
+    // Understeer in this simulation is the car quietly refusing to turn, and
+    // that refusal leaves no trace anywhere else.
+    const demand = v * v * Math.abs(f.kRight) / Math.max(grip, 1);
+    this.understeer = clamp((demand - 0.95) / 0.3, 0, 1);
 
     // The front wheels keep their grip under the handbrake, so the lock is not
     // reduced -- otherwise the car would just turn less and stay pinned to the
