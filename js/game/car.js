@@ -26,7 +26,7 @@ export const DEFAULT_PHYS = {
   maxSteer: 0.6,     // rad, standstill lock
   wheelbase: 2.75,
   coastBase: 3.2,
-  coastDrag: 0.0018,
+  coastDrag: 0.0011,
   assist: 0.85,      // gentle realignment with the track
 };
 

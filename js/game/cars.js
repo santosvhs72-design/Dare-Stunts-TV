@@ -12,7 +12,7 @@ export const CARS = [
     bars: { Velocidade: 0.95, Aderência: 0.5, Travagem: 0.55 },
     phys: {
       vmax: 76, accel: 9, brake: 17, mu: 1.28, muCurb: 0.86,
-      maxSteer: 0.55, wheelbase: 2.95, coastBase: 2.9, coastDrag: 0.0016, assist: 0.75,
+      maxSteer: 0.55, wheelbase: 2.95, coastBase: 2.9, coastDrag: 0.0006, assist: 0.75,
     },
     img: 'img/lebre.png',
     // Paint and proportions only: the cockpit derives every other tone from
@@ -32,7 +32,7 @@ export const CARS = [
     bars: { Velocidade: 0.72, Aderência: 0.7, Travagem: 0.7 },
     phys: {
       vmax: 63, accel: 9.6, brake: 17, mu: 1.45, muCurb: 0.95,
-      maxSteer: 0.6, wheelbase: 2.75, coastBase: 3.2, coastDrag: 0.0018, assist: 0.85,
+      maxSteer: 0.6, wheelbase: 2.75, coastBase: 3.2, coastDrag: 0.0011, assist: 0.85,
     },
     img: 'img/corsario.png',
     theme: {

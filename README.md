@@ -175,6 +175,14 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   já reduzido (`grip`) que a própria direcção usa para limitar o volante,
   para que o aviso apareça exactamente quando -- e porque -- a aderência
   falha.
+- **O travão tem de ser sempre mais forte do que largar o acelerador.** O
+  arrasto do ar ao deixar de acelerar (`coastDrag` em `game/cars.js`) cresce
+  com o quadrado da velocidade, e à velocidade máxima do Speed King chegava a
+  travar *mais* do que o próprio travão a fundo -- o carro mais rápido dos
+  três tinha, na prática, o travão mais fraco a sério. Cada carro mantém
+  agora o travão a rondar o dobro do arrasto de largar o pé à sua própria
+  velocidade máxima, tal como já acontecia (sem se ter pensado nisso) no
+  Slow Hand.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem
