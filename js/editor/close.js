@@ -178,6 +178,51 @@ function refine(base, u0, d0, d1, R) {
   return miss(out).size < 0.5 ? out : null;
 }
 
+// Where the join would lie on top of road that is already there.
+//
+// Two ribbons of tarmac at the same height in the same place is not a junction,
+// it is a mess: they fight over the same ground and neither reads as a road.
+// Passing over or under is another matter -- the world builds pillars for that
+// already -- so a clash is being close in plan *and* close in height.
+//
+// Frames are a metre apart, so comparing a long track against a long join pair
+// by pair is millions of tests. They go into a coarse grid first, and only the
+// nine squares around each point of the join are looked at.
+const CLASH_NEAR = 11;       // metres between centrelines that count as on top
+const CLASH_RISE = 4.5;      // metres of height that make it a flyover instead
+const CELL = 12;
+const KEEP = 26;             // the two ends, where the join is meant to meet
+
+function clashes(frames, from) {
+  const key = (a, b) => a + ',' + b;
+  const grid = new Map();
+  const endS = frames[frames.length - 1].s;
+  for (let i = 0; i < from; i++) {
+    const f = frames[i];
+    if (f.s < KEEP) continue;                 // the start, which it must reach
+    const k = key(Math.floor(f.pos[0] / CELL), Math.floor(f.pos[2] / CELL));
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(f);
+  }
+  let n = 0;
+  for (let i = from; i < frames.length; i++) {
+    const f = frames[i];
+    if (f.s > endS - KEEP) continue;          // where it comes home again
+    const cx = Math.floor(f.pos[0] / CELL), cz = Math.floor(f.pos[2] / CELL);
+    let hit = false;
+    for (let dx = -1; dx <= 1 && !hit; dx++) {
+      for (let dz = -1; dz <= 1 && !hit; dz++) {
+        for (const g of grid.get(key(cx + dx, cz + dz)) || []) {
+          if (Math.abs(g.pos[1] - f.pos[1]) > CLASH_RISE) continue;
+          if (Math.hypot(g.pos[0] - f.pos[0], g.pos[2] - f.pos[2]) < CLASH_NEAR) { hit = true; break; }
+        }
+      }
+    }
+    if (hit) n++;
+  }
+  return n;
+}
+
 // Generated pieces are rounded to something a person can read and then edit by
 // hand. How far they can be rounded depends on the track, so it is tried coarse
 // first and only kept if the track still closes afterwards.
@@ -199,19 +244,31 @@ export function closeCircuit(pieces) {
   const base = levelOut(pieces);
   const p = endPose(base);
 
-  // Every shape the arithmetic can propose, ranked by how close it already is.
+  const baseLen = walkTrack(base).length;
+  const startOfJoin = w => {
+    const i = w.frames.findIndex(f => f.s >= baseLen - 0.5);
+    return i < 0 ? w.frames.length : i;
+  };
+
+  // Every shape the arithmetic can propose, each walked once and ranked by
+  // whether it lands on the existing road and then by how close it already is.
+  // Ranking on the rough shape rather than the refined one is deliberate:
+  // refining is expensive and the refinement moves a join by metres, not by
+  // enough to take it off a piece of road it was lying along.
   const tries = [];
   for (const R of RADII) {
-    for (const j of joins(p, R)) tries.push(j);
+    for (const j of joins(p, R)) {
+      const w = walkTrack([...base, ...j.pieces]);
+      tries.push({ ...j, bad: clashes(w.frames, startOfJoin(w)), off: miss([...base, ...j.pieces]).size });
+    }
   }
-  tries.sort((a, b) => miss([...base, ...a.pieces]).size - miss([...base, ...b.pieces]).size);
+  tries.sort((a, b) => (a.bad - b.bad) || (a.off - b.off));
 
   let best = null;
   for (const j of tries.slice(0, 6)) {
     const got = refine(base, j.u, j.d0, j.d1, j.R);
     if (!got) continue;
-    const w = walkTrack(got);
-    if (!closes(w.frames)) continue;
+    if (!closes(walkTrack(got).frames)) continue;
     // Round the generated pieces to numbers a person can read and adjust. The
     // shift is centimetres, but it is still checked rather than assumed.
     let kept = got;
@@ -219,7 +276,13 @@ export function closeCircuit(pieces) {
       const neat = got.map((q, i) => (i < pieces.length ? q : tidy(q, d)));
       if (closes(walkTrack(neat).frames)) { kept = neat; break; }
     }
-    if (!best || w.length < best.length) best = { pieces: kept, length: w.length };
+    const wk = walkTrack(kept);
+    const bad = clashes(wk.frames, startOfJoin(wk));
+    // A join that keeps off the road already laid beats a shorter one that
+    // does not, however much longer it has to go round to manage it.
+    if (!best || bad < best.bad || (bad === best.bad && wk.length < best.length)) {
+      best = { pieces: kept, length: wk.length, bad };
+    }
   }
   return best ? best.pieces : null;
 }

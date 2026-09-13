@@ -29,7 +29,7 @@ export const node = html => {
 // Shown on the home screen so it is obvious at a glance which build a
 // television is actually running -- two APKs with the same name and package
 // are otherwise indistinguishable once installed.
-export const BUILD = '3.12-tv';
+export const BUILD = '3.13-tv';
 
 export const allTracks = () => [...TRACKS, ...loadCustom()];
 
