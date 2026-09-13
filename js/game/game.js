@@ -6,7 +6,7 @@ import { CARS } from './cars.js';
 import { Hud, formatTime } from './hud.js';
 import { clamp, quat, v3 } from '../core/math.js';
 import { GhostRecorder, GhostPlayer, buildGhostMesh, ghostModelMatrix,
-         loadGhost, saveGhost, clearGhost,
+         loadGhost, saveGhost, clearGhost, lapSlice,
          GHOST_ALPHA, GHOST_AMBIENT } from './ghost.js';
 import { profileKey } from '../ui/profiles.js';
 
@@ -75,6 +75,21 @@ export const STATE = {
 
 // How many times round a circuit, when the track itself does not say.
 export const DEFAULT_LAPS = 3;
+
+// How many times round, chosen per track and kept per profile. Only a circuit
+// has any say in this; a sprint is one run of the course and always was.
+export const LAP_CHOICES = [1, 2, 3, 5, 10];
+const lapsKey = id => profileKey(`laps.${id}`);
+
+export function getLaps(id) {
+  let v = null;
+  try { v = Number(localStorage.getItem(lapsKey(id))); } catch { return DEFAULT_LAPS; }
+  return LAP_CHOICES.includes(v) ? v : DEFAULT_LAPS;
+}
+
+export function setLaps(id, n) {
+  try { localStorage.setItem(lapsKey(id), String(n)); } catch { /* private mode */ }
+}
 
 // How the replay camera sits behind the car: back and up in the car's own
 // frame (so it banks and dips with the road exactly as the car does), tilted
@@ -279,10 +294,21 @@ export class Game {
 
   // How far ahead or behind the record holder you are, in milliseconds:
   // positive means the ghost reached this point sooner, so you are losing.
+  // On a circuit the ghost is a single lap, so the comparison is lap against
+  // lap: how far into this lap the car is, against how long the ghost took to
+  // get that far into its own.
+  lapDistance() {
+    return this.track.closed ? this.car.s - this.lap * this.track.length : this.car.s;
+  }
+
+  lapTime() {
+    return this.track.closed ? this.timeMs - this.lapStart : this.timeMs;
+  }
+
   updateGhostDelta() {
     if (!this.showGhost || !this.ghost) { this.ghostDelta = null; return; }
-    const tg = this.ghost.timeAt(this.car.s);
-    this.ghostDelta = tg == null ? null : this.timeMs - tg;
+    const tg = this.ghost.timeAt(this.lapDistance());
+    this.ghostDelta = tg == null ? null : this.lapTime() - tg;
   }
 
   checkProgress() {
@@ -314,6 +340,7 @@ export class Game {
       if (this.lap >= this.laps) this.finish();
       else {
         this.cpIndex = 0;
+        if (this.ghost) this.ghost.reset();
         this.setMessage(`VOLTA ${this.lap + 1} / ${this.laps}`,
           formatTime(this.closeLap()), '#ffb43a', 1.6);
         if (this.sound) this.sound.checkpoint();
@@ -333,6 +360,16 @@ export class Game {
     return this.lapTimes.length ? Math.min(...this.lapTimes) : null;
   }
 
+  // The part of the recording the record is actually about: on a circuit the
+  // best lap alone, rebased to the start of the track; otherwise the whole run.
+  recordRun() {
+    if (!this.track.closed) return this.ghostRec;
+    const k = this.lapTimes.indexOf(this.bestLap());
+    let from = 0;
+    for (let i = 0; i < k; i++) from += this.lapTimes[i];
+    return lapSlice(this.ghostRec, from, from + this.lapTimes[k], k * this.track.length);
+  }
+
   finish() {
     this.state = STATE.FINISHED;
     this.finalTime = this.timeMs;
@@ -340,22 +377,30 @@ export class Game {
     // Kept regardless of whether this lap set any record: a replay is about
     // watching the drive just made, not about who holds the track.
     this.lastLap = { car: this.car0.id, p: this.ghostRec.p.slice(), ms: this.finalTime };
+
+    // What the record is measured on. A circuit is scored on its best single
+    // lap, not on the total: the total depends on how many laps were chosen,
+    // and a best lap does not, so every time on the board stays comparable
+    // with every other. A sprint has one lap and the two are the same number.
+    const scored = this.track.closed ? this.bestLap() : this.finalTime;
     const prev = getBest(this.def.id);
-    this.newRecord = prev == null || this.finalTime < prev.ms;
+    this.newRecord = prev == null || scored < prev.ms;
     // Kept apart from the overall record: a lap that beats your own previous
     // best with this car still means something even when a different car
     // already holds the track outright, and staying quiet about it would make
     // trying a car you are not fastest with feel pointless.
     const prevCar = getCarBest(this.def.id, this.car0.id);
-    const newCarRecord = prevCar == null || this.finalTime < prevCar.ms;
-    if (newCarRecord) saveCarBest(this.def.id, this.car0.id, this.finalTime);
+    const newCarRecord = prevCar == null || scored < prevCar.ms;
+    if (newCarRecord) saveCarBest(this.def.id, this.car0.id, scored);
     if (this.newRecord) {
-      saveBest(this.def.id, this.finalTime, this.car0.id);
-      this.best = { ms: Math.round(this.finalTime), car: this.car0.id };
-      // The lap just driven becomes the ghost to beat. If storage refuses it,
+      saveBest(this.def.id, scored, this.car0.id);
+      this.best = { ms: Math.round(scored), car: this.car0.id };
+      // The lap just driven becomes the ghost to beat -- and on a circuit that
+      // is the best lap on its own, not the whole run, or it would be three
+      // times longer than the time it claims to be. If storage refuses it,
       // drop any older ghost rather than leave one that no longer matches the
       // record it claims to be.
-      if (saveGhost(this.def.id, this.ghostRec, this.car0.id, this.finalTime)) {
+      if (saveGhost(this.def.id, this.recordRun(), this.car0.id, scored)) {
         this.loadGhostFor(this.def.id);
       } else {
         clearGhost(this.def.id);
@@ -369,6 +414,8 @@ export class Game {
       // one: "new record" already implies a new personal best with this car.
       carRecord: newCarRecord && !this.newRecord,
       lapTimes: this.lapTimes.slice(),
+      circuit: this.track.closed,
+      scored,
     });
   }
 
@@ -432,7 +479,7 @@ export class Game {
       r.drawGhost(this.replayChunk, ghostModelMatrix(this.replayPose), 1, 1);
     } else if (this.showGhost && this.ghost && this.ghostChunk
         && this.state !== STATE.COUNTDOWN) {
-      const pose = this.ghost.at(this.timeMs);
+      const pose = this.ghost.at(this.lapTime());
       if (pose) r.drawGhost(this.ghostChunk, ghostModelMatrix(pose), GHOST_AMBIENT, GHOST_ALPHA);
     }
 
@@ -500,6 +547,8 @@ export class Game {
         lap: this.lap + 1,
         laps: this.laps,
         lapTimes: this.lapTimes,
+        lapMs: this.track.closed ? this.lapTime() : null,
+        bestIsLap: this.track.closed,
         ghostDelta: this.ghostDelta,
         message, submessage: sub, messageColor: color,
       });

@@ -6,7 +6,8 @@
 // each choice gets its own screen with a single row to walk along.
 import { CARS, carById } from '../game/cars.js';
 import { TRACKS } from '../world/tracks.js';
-import { getBest, getCarBests, clearRecord } from '../game/game.js';
+import { getBest, getCarBests, clearRecord,
+         getLaps, setLaps, LAP_CHOICES } from '../game/game.js';
 import { formatTime } from '../game/hud.js';
 import { loadCustom, loadShared, deleteCustom, setTrackShared } from '../world/customtracks.js';
 import { walkTrack } from '../world/track.js';
@@ -29,7 +30,7 @@ export const node = html => {
 // Shown on the home screen so it is obvious at a glance which build a
 // television is actually running -- two APKs with the same name and package
 // are otherwise indistinguishable once installed.
-export const BUILD = '3.13-tv';
+export const BUILD = '3.14-tv';
 
 export const allTracks = () => [...TRACKS, ...loadCustom()];
 
@@ -353,6 +354,15 @@ export function trackScreen(app, { shared = false } = {}) {
   let list = shared ? loadShared() : allTracks();
   let i = 0;
   const walks = new Map();
+  // A track is a circuit if its own geometry comes back to where it started;
+  // the walk is already cached here for the map on each card.
+  const walked = t => {
+    if (!walks.has(t.id)) {
+      try { walks.set(t.id, walkTrack(t.pieces)); } catch { walks.set(t.id, null); }
+    }
+    return walks.get(t.id);
+  };
+  const isCircuit = t => !!(walked(t) && walked(t).closed);
   // The trailing "Pistas partilhadas" card only exists on the first visit --
   // the shared screen has nothing further to lead to.
   const slots = () => list.length + (shared ? 0 : 1);
@@ -390,7 +400,8 @@ export function trackScreen(app, { shared = false } = {}) {
       <div class="cbest">${esc(t.desc)}</div>
       <div class="meta"><span>Alvo <b>${formatTime(t.target * 1000)}</b></span>
         <span>Recorde <b>${formatTime(best && best.ms)}</b>${who}</span></div>
-      <div class="meta"><span>Contigo (${esc(app.car.name)}) <b>${formatTime(mine)}</b></span></div>
+      <div class="meta"><span>Contigo (${esc(app.car.name)}) <b>${formatTime(mine)}</b></span>
+        ${isCircuit(t) ? `<span>Circuito <b>${getLaps(t.id)} voltas</b></span>` : ''}</div>
     </div>`;
   };
 
@@ -497,9 +508,19 @@ export function trackScreen(app, { shared = false } = {}) {
     // A label may be a function, so "Partilhar" can show the choice it is
     // about to flip without the menu having to be closed and reopened.
     const items = [
-      { label: `Correr em ${t.name}`, run: () => { app.pop(); app.startRace(t); } },
+      { label: `Correr em ${t.name}`,
+        run: () => { app.pop(); app.startRace(isCircuit(t) ? { ...t, laps: getLaps(t.id) } : t); } },
       { label: 'Ver recordes', run: () => { app.pop(); app.push(recordsScreen(t)); } },
     ];
+    // Only a circuit has laps to choose. The record is the best single lap, so
+    // changing this never puts times out of reach of each other.
+    if (isCircuit(t)) {
+      items.splice(1, 0, { label: () => `Voltas: ${getLaps(t.id)}`, run: () => {
+        const k = LAP_CHOICES.indexOf(getLaps(t.id));
+        setLaps(t.id, LAP_CHOICES[(k + 1) % LAP_CHOICES.length]);
+        paintM(); refresh();
+      } });
+    }
     if (getBest(t.id)) {
       items.push({ label: 'Limpar o recorde', run: () => { app.pop(); askClear(t); } });
     }

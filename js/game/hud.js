@@ -512,6 +512,23 @@ export class Hud {
     ctx.font = `700 32px ${MONO}`;
     ctx.fillText(formatTime(st.timeMs), w / 2, top + 38);
 
+    // The lap being driven, under the total. On a circuit the total is a sum
+    // of laps and says little on its own; this is the number being raced.
+    let below = top + 56;
+    if (st.lapMs != null) {
+      panel(w / 2 - 108, below + 6, 216, 30);
+      ctx.fillStyle = tone(PRINT, 0.5);
+      ctx.font = `600 10px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.fillText('ESTA VOLTA', w / 2 - 94, below + 26);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = PRINT;
+      ctx.font = `700 19px ${MONO}`;
+      ctx.fillText(formatTime(st.lapMs), w / 2 + 94, below + 27);
+      below += 36;
+      ctx.textAlign = 'center';
+    }
+
     // Gap to the record holder's ghost. Only drawn when there is a ghost, so
     // the cockpit is untouched in a plain time trial -- and it earns its space,
     // because for most of a lap the ghost is out of sight behind or ahead.
@@ -521,9 +538,10 @@ export class Hud {
       const label = `${ahead ? '−' : '+'}${Math.abs(d).toFixed(2)}`;
       ctx.font = `700 20px ${MONO}`;
       const bw = Math.max(96, ctx.measureText(label).width + 30);
-      panel(w / 2 - bw / 2, top + 62, bw, 32);
+      panel(w / 2 - bw / 2, below + 6, bw, 32);
       ctx.fillStyle = ahead ? GREEN : RED;
-      ctx.fillText(label, w / 2, top + 84);
+      ctx.fillText(label, w / 2, below + 28);
+      below += 38;
     }
 
     // Laps already done, under the clock, with the best of them picked out.
@@ -531,7 +549,7 @@ export class Hud {
     // clock above is the whole story and this would be an empty box.
     const done = st.lapTimes || [];
     if (done.length) {
-      const rowH = 22, y0 = top + (st.ghostDelta != null ? 100 : 62);
+      const rowH = 22, y0 = below + 6;
       const bw = 150;
       panel(w / 2 - bw / 2, y0, bw, rowH * done.length + 10);
       const best = Math.min(...done);
@@ -574,7 +592,7 @@ export class Hud {
     panel(w - pad - 172, top, 172, 62);
     ctx.fillStyle = tone(PRINT, 0.5);
     ctx.font = `600 10px ${FONT}`;
-    ctx.fillText('MELHOR', w - pad - 14, top + 20);
+    ctx.fillText(st.bestIsLap ? 'MELHOR VOLTA' : 'MELHOR', w - pad - 14, top + 20);
     ctx.fillStyle = st.bestMs == null ? tone(PRINT, 0.5) : GREEN;
     ctx.font = `700 20px ${MONO}`;
     ctx.fillText(formatTime(st.bestMs), w - pad - 14, top + 46);

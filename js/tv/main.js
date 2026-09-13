@@ -242,15 +242,23 @@ function listModal(title, items, onBack) {
   };
 }
 
-game.onFinish = ({ time, best, record, carRecord, lapTimes }) => {
+game.onFinish = ({ time, best, record, carRecord, lapTimes, circuit, scored }) => {
   const who = best && best.car ? ` · ${carById(best.car).name}` : '';
-  const bestLine = `Recorde ${formatTime(best && best.ms)}${esc(who)} · alvo ${formatTime(game.def.target * 1000)}`;
+  // On a circuit the board is about the best single lap, so say so rather than
+  // letting a lap time sit next to a three-lap total as if they compared.
+  const what = circuit ? 'Recorde por volta' : 'Recorde';
+  const bestLine = `${what} ${formatTime(best && best.ms)}${esc(who)}`
+    + ` · alvo ${formatTime(game.def.target * 1000)}`;
   // Three outcomes, not two: the overall record (unmistakable, it needs no
   // company), a personal best with this particular car even though someone
   // else's car still holds the track outright (worth naming, or trying a car
   // you are not fastest with would only ever feel like losing), or neither.
-  const title = record ? 'Novo recorde!' : carRecord ? `Melhor volta com o ${esc(game.car0.name)}!` : 'Terminado';
-  const sub = record ? `Melhor tempo em ${esc(game.def.name)} com o ${esc(game.car0.name)}` : bestLine;
+  const title = record ? 'Novo recorde!'
+    : carRecord ? `Melhor com o ${esc(game.car0.name)}!` : 'Terminado';
+  const sub = record
+    ? `${circuit ? 'Melhor volta' : 'Melhor tempo'} em ${esc(game.def.name)}`
+      + ` com o ${esc(game.car0.name)}${circuit ? `: ${formatTime(scored)}` : ''}`
+    : bestLine;
   // On a circuit the total is only half the story: which lap was the good one
   // is the part worth looking at, so every one of them is listed with the best
   // picked out.

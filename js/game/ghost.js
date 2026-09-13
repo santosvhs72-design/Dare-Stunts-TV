@@ -72,6 +72,26 @@ export class GhostRecorder {
   }
 }
 
+// One lap out of a recorded race, rebased so it starts where a lap starts.
+//
+// On a circuit the record is the best single lap, so that is the lap worth
+// keeping and racing against -- the whole three-lap run would be three times
+// too long and would never match the time it claims to be. Samples sit at
+// fixed intervals, so the lap is a slice; the distances have a whole number of
+// laps taken off them, which is what puts it back at the start of the track.
+export function lapSlice(recorder, fromMs, toMs, dropS) {
+  const p = recorder.p;
+  const n = Math.floor(p.length / STRIDE);
+  const a = Math.max(0, Math.floor(fromMs / STEP_MS));
+  const b = Math.min(n - 1, Math.ceil(toMs / STEP_MS));
+  const out = [];
+  for (let i = a; i <= b; i++) {
+    const k = i * STRIDE;
+    out.push(r2(p[k] - dropS), p[k + 1], p[k + 2], p[k + 3], p[k + 4]);
+  }
+  return { p: out };
+}
+
 export function saveGhost(trackId, recorder, carId, ms) {
   if (!recorder || recorder.p.length < STRIDE * 2) return false;
   try {

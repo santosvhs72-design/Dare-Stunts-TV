@@ -145,6 +145,17 @@ export function editorScreen(app, def) {
     refresh();
   };
 
+  // A copy lands right after the original, settings and all -- a chicane that
+  // took a minute to tune is usually wanted twice.
+  const doCopy = () => {
+    if (cursor < 0) return;
+    pieces.splice(cursor + 1, 0, { ...pieces[cursor] });
+    cursor += 1;
+    dirty = true;
+    message(`Duplicada: ${describe(pieces[cursor])}`);
+    refresh();
+  };
+
   const swap = d => {
     const to = cursor + d;
     if (cursor < 0 || to < 0 || to >= pieces.length) return;
@@ -414,6 +425,7 @@ export function editorScreen(app, def) {
     ];
     if (has) {
       items.push({ label: 'Ajustar esta peça', run: () => { app.pop(); app.push(paramsModal()); } });
+      items.push({ label: 'Duplicar esta peça', run: () => { app.pop(); doCopy(); } });
       items.push({ label: 'Apagar esta peça', run: () => { app.pop(); doDelete(); } });
       if (cursor > 0) items.push({ label: 'Mover para trás', run: () => { app.pop(); swap(-1); } });
       if (cursor < pieces.length - 1) items.push({ label: 'Mover para a frente', run: () => { app.pop(); swap(1); } });
