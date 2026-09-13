@@ -29,7 +29,7 @@ export const node = html => {
 // Shown on the home screen so it is obvious at a glance which build a
 // television is actually running -- two APKs with the same name and package
 // are otherwise indistinguishable once installed.
-export const BUILD = '3.5-tv';
+export const BUILD = '3.6-tv';
 
 export const allTracks = () => [...TRACKS, ...loadCustom()];
 
@@ -249,8 +249,10 @@ export function padScreen(app) {
     <div class="eyebrow">Comando</div>
     <p class="sub" id="padapi"></p>
     <div class="menu" id="padlist" style="min-width:56vw;margin-top:1vh"></div>
-    <p class="sub" id="padkeys" style="margin-top:1.5vh"></p>
-    ${legend([['b', 'B', 'voltar'], ['', '↕', 'carrega nos botões para os veres aqui']])}
+    <p class="sub" id="paddrive" style="margin-top:1.5vh"></p>
+    <p class="sub" id="padkeys" style="margin-top:.6vh"></p>
+    ${legend([['b', 'B', 'voltar'],
+              ['', '↕', 'trava e vira ao mesmo tempo: os dois têm de acender juntos']])}
   </div></div>`);
 
   const onKey = e => {
@@ -278,6 +280,20 @@ export function padScreen(app) {
     el.querySelector('#padkeys').textContent = seen.length
       ? `Teclas recebidas: ${seen.join('   ')}`
       : 'Teclas recebidas: nenhuma ainda — o comando também deve aparecer aqui';
+
+    // What driving itself makes of all that -- the part that actually reaches
+    // the car, and the only place a controller that cannot do two things at
+    // once shows itself. A D-pad is one switch: hold "down" to brake and it
+    // cannot also report "left", so the car brakes beautifully and then refuses
+    // to turn. Nothing in the list of buttons above would ever say so; holding
+    // both and watching these two readings at the same time does.
+    const d = app.input ? app.input.poll() : null;
+    const bar = v => '▮'.repeat(Math.round(Math.abs(v) * 8)).padEnd(8, '·');
+    el.querySelector('#paddrive').textContent = d
+      ? `A conduzir agora:  acelerador ${bar(d.throttle)}  travão ${bar(d.brake)}  `
+        + `direção ${d.steer < -0.05 ? '◀' : d.steer > 0.05 ? '▶' : '—'} ${bar(d.steer)}  `
+        + `travão de mão ${d.handbrake ? 'SIM' : 'não'}`
+      : '';
   };
   paint();
   const timer = setInterval(paint, 120);

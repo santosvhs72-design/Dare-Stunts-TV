@@ -51,6 +51,7 @@ function restack() {
 const app = {
   car: loadCar(),
   sound,
+  input,   // the "Comando" screen shows what driving actually makes of a press
   push(v) {
     stack.push(v);
     if (v.el) ui.appendChild(v.el);
