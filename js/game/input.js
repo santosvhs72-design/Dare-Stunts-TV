@@ -1,14 +1,17 @@
 import { keyName } from '../ui/keys.js';
 import { activePad } from '../ui/pads.js';
 
+// The wrapper forwards a controller's buttons as keys, because a television's
+// WebView does not always expose the Gamepad API (see TV_KEYS in
+// MainActivity): A arrives as Enter, X as KeyX, B as KeyB. Driving has to read
+// those names as well as the pad itself, or the whole controller steers and
+// accelerates but never brakes.
 const KEYS = {
-  // Enter is the controller's A button: the wrapper forwards it as a key, so a
-  // pad can still drive on a television where the Gamepad API is missing.
   throttle: ['ArrowUp', 'KeyW', 'Enter'],
-  brake: ['ArrowDown', 'KeyS'],
+  brake: ['ArrowDown', 'KeyS', 'KeyX'],
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
-  handbrake: ['Space'],
+  handbrake: ['Space', 'KeyB'],
 };
 
 const DEADZONE = 0.14;

@@ -27,12 +27,15 @@ const KEY_ACTION = {
   ArrowRight: 'right', KeyD: 'right',
   Enter: 'ok', Space: 'ok',
   Escape: 'back', Backspace: 'back',
+  // B is deliberately not 'back': it is the handbrake while a lap is running,
+  // and the dispatcher in tv/main.js turns it into 'back' everywhere else.
+  KeyB: 'b',
   KeyX: 'x', KeyY: 'y', KeyQ: 'l', KeyE: 'r', KeyM: 'menu', KeyG: 'ghost',
 };
 
 // Standard gamepad mapping. The face buttons keep their console meaning so the
 // on-screen legend matches the physical controller.
-const PAD_ACTION = { 0: 'ok', 1: 'back', 2: 'x', 3: 'y', 4: 'l', 5: 'r', 8: 'back', 9: 'menu' };
+const PAD_ACTION = { 0: 'ok', 1: 'b', 2: 'x', 3: 'y', 4: 'l', 5: 'r', 8: 'back', 9: 'menu' };
 const PAD_DIR = { 12: 'up', 13: 'down', 14: 'left', 15: 'right' };
 const DIRS = ['up', 'down', 'left', 'right'];
 

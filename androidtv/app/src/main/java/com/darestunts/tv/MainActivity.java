@@ -67,7 +67,10 @@ public class MainActivity extends Activity {
         TV_KEYS.put(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "KeyM");
         // Controller face and shoulder buttons, named as the page names them.
         TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_A, "Enter");
-        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_B, "Escape");
+        // B gets a name of its own rather than sharing "Escape" with the
+        // remote's own Back: while a lap is running B is the handbrake, and a
+        // handbrake that also means "back" put the pause menu up mid-corner.
+        TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_B, "KeyB");
         TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_X, "KeyX");
         TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_Y, "KeyY");
         TV_KEYS.put(KeyEvent.KEYCODE_BUTTON_L1, "KeyQ");

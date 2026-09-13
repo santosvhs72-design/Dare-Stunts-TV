@@ -103,7 +103,11 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Ver pistas partilhadas | seletor de pistas &rarr; última pista da fila | idem |
 | Fechar a aplicação | menu inicial &rarr; Sair, ou Voltar | idem |
 
-A conduzir: RT acelera, LT trava, stick esquerdo vira, A é travão de mão.
+A conduzir: **A acelera, X trava, B é o travão de mão**, stick esquerdo ou
+cruzeta vira. Os gatilhos (RT/LT) e cima/baixo da cruzeta também aceleram e
+travam, para quem preferir. Y liga e desliga o ghost sem parar a volta, e
+Start pausa — a meio de uma volta, B é só o travão de mão e não "voltar", por
+isso pausa-se com Start ou com o Voltar do telecomando.
 Num teclado, `G` liga e desliga o ghost sem parar a volta.
 
 ## Como está feito
@@ -128,7 +132,13 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   sério. Manda quem foi usado por último (`js/ui/pads.js`). Os botões do comando
   são também reencaminhados pela `Activity` como teclas, para que a `WebView` que
   não exponha a Gamepad API não deixe o comando sem forma de confirmar nada; a
-  ação repetida é absorvida pelo limite de 90 ms que já existia.
+  ação repetida é absorvida pelo limite de 90 ms que já existia. E é por aí que
+  se conduz numa televisão a sério: os nomes que a `Activity` inventa (`Enter`
+  para o A, `KeyX` para o X, `KeyB` para o B) têm de constar também das teclas
+  de condução em `game/input.js`, ou o comando vira e acelera mas nunca trava.
+  O B tem nome próprio em vez de partilhar o `Escape` do Voltar do telecomando,
+  porque a meio de uma volta é o travão de mão -- e um travão de mão que também
+  quer dizer "voltar" abre o menu de pausa a meio de uma curva.
 - **A interface nunca usa o foco do DOM.** Cada ecrã tem o seu próprio cursor e
   reage a ações com nome, o que evita toda uma classe de problemas de foco.
 - **Loops e corkscrews são uma volta de uma hélice.** O ligeiro desvio lateral do

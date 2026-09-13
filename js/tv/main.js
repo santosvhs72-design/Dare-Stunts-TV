@@ -111,6 +111,9 @@ let racing = false;
 const raceView = () => ({
   el: null,
   drive: true,
+  // The one screen that is a car rather than a menu, so B is the handbrake
+  // here and nothing else -- see the dispatcher below.
+  car: true,
   key(a) {
     if (a === 'menu' || a === 'back') pauseRace();
     // G on a keyboard, Y on a pad. A remote has neither, so the pause menu
@@ -292,6 +295,16 @@ let audioTouched = false;
 tv.on(a => {
   if (!audioTouched) { audioTouched = true; sound.unlock(); }
   const t = top();
+  // The controller's B arrives as its own action. While a lap is running it is
+  // the handbrake -- the driving layer reads it as a held key (KEYS in
+  // game/input.js) and it must not also read as "back" and put the pause menu
+  // up in the middle of a corner. Anywhere else there is no car holding it, and
+  // it is exactly what "back" means. The remote's own Back key and Select still
+  // send 'back' directly, so pausing with a remote is untouched.
+  if (a === 'b') {
+    if (t && t.car) return;
+    a = 'back';
+  }
   if (!(t && t.drive) && (a === 'up' || a === 'down' || a === 'left' || a === 'right')) sound.tick();
   if (t && t.key) t.key(a);
 });
