@@ -183,6 +183,15 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   agora o travão a rondar o dobro do arrasto de largar o pé à sua própria
   velocidade máxima, tal como já acontecia (sem se ter pensado nisso) no
   Slow Hand.
+- **Travar e acelerar não custam a mesma aderência, porque não põem o peso no
+  mesmo sítio.** A travar, o carro mergulha e carrega as rodas que o viram --
+  é por isso que se trava para dentro das curvas na vida real. A acelerar,
+  senta-se atrás e alivia-as, e o nariz foge em frente. O modelo cobrava aos
+  dois o mesmo (`GRIP_SHARE`), o que fazia do travão a pior coisa a tocar
+  antes de uma curva: o carro abrandava e seguia em frente na mesma, e
+  largar o acelerador dava uma curva melhor do que travar. Agora a travagem
+  usa `BRAKE_SHARE`, bastante mais baixo; a subviragem com o pé no
+  acelerador fica exactamente como estava.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem

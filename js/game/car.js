@@ -7,7 +7,8 @@ const STEER_RATE = 4.6;     // rad/s of lock movement
 const WALL_BOUNCE = 0.22;   // fraction of the sideways hit that comes back
 const WALL_BITE = 0.95;     // speed lost per m/s of sideways impact
 const WALL_SCRUB = 18;      // m/s^2 lost while held hard against the barrier
-const GRIP_SHARE = 0.4;     // how much of the friction budget braking steals
+const GRIP_SHARE = 0.4;     // how much of the friction budget power steals
+const BRAKE_SHARE = 0.15;   // ... and how much braking does, nose-down and loaded
 const HANDBRAKE_HOLD = 0.5; // fraction of cornering grip left when it is pulled
 const HANDBRAKE_YAW = 1.7;  // rad/s of extra rotation as the rear steps out
 const VU_DECAY = 3.2;       // how fast the tyres scrub a slide off
@@ -173,7 +174,15 @@ export class Car {
     // the lock off the total instead made full lock overrun the limit whenever
     // the throttle was down, which is to say almost always: a permanent slide.
     const used = Math.min(Math.abs(aLong), aLatMax);
-    const grip = Math.sqrt(Math.max(0, aLatMax * aLatMax - used * used * GRIP_SHARE));
+    // Slowing down and speeding up do not cost the same cornering grip, because
+    // they do not put the weight in the same place. On the brakes the car dives
+    // and loads the wheels that steer it -- which is why trail-braking works at
+    // all, and why a braking car should still turn in. On the power it squats
+    // and takes weight *off* them, so the nose washes out instead. Charging both
+    // at the same rate made the brake the worst thing you could touch before a
+    // bend: the car slowed down and then ran straight on anyway.
+    const share = aLong < 0 ? BRAKE_SHARE : GRIP_SHARE;
+    const grip = Math.sqrt(Math.max(0, aLatMax * aLatMax - used * used * share));
 
     // Understeer: whether the corner is possible at all against what grip is
     // left, not the tyres' theoretical best -- braking (or accelerating) hard
