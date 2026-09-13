@@ -3,7 +3,7 @@ import { buildTrack } from '../world/track.js';
 import { buildSky, buildGround, buildScenery, skyFogColor, skyAmbient } from '../world/scenery.js';
 import { Car, MODE, gearFor } from './car.js';
 import { CARS } from './cars.js';
-import { Hud } from './hud.js';
+import { Hud, formatTime } from './hud.js';
 import { clamp, quat, v3 } from '../core/math.js';
 import { GhostRecorder, GhostPlayer, buildGhostMesh, ghostModelMatrix,
          loadGhost, saveGhost, clearGhost,
@@ -73,6 +73,9 @@ export const STATE = {
   PAUSED: 'paused', FINISHED: 'finished', REPLAY: 'replay',
 };
 
+// How many times round a circuit, when the track itself does not say.
+export const DEFAULT_LAPS = 3;
+
 // How the replay camera sits behind the car: back and up in the car's own
 // frame (so it banks and dips with the road exactly as the car does), tilted
 // down a little so the car sits in frame rather than at the bottom edge.
@@ -136,6 +139,9 @@ export class Game {
     };
     this.car = new Car(track, this.car0.phys);
     this.def = def;
+    // A track that comes back to its own start is driven in laps; one that
+    // does not is the single run it has always been.
+    this.laps = track.closed ? Math.max(1, def.laps || DEFAULT_LAPS) : 1;
     this.best = getBest(def.id);
     this.loadGhostFor(def.id);
     this.restart();
@@ -161,6 +167,8 @@ export class Game {
     this.car.reset(0);
     this.timeMs = 0;
     this.cpIndex = 0;
+    this.lap = 0;
+    this.lapTimes = [];
     this.state = STATE.COUNTDOWN;
     this.countdown = 3.6;
     this.msg = null;
@@ -254,7 +262,8 @@ export class Game {
     const grip = this.car0.phys.mu * 9.81;
     let best = null;
     for (let d = 8; d < ahead; d += 6) {
-      const g = this.track.frameAt(Math.min(car.s + d, this.track.length - 1));
+      const ahead = this.track.closed ? car.s + d : Math.min(car.s + d, this.track.length - 1);
+      const g = this.track.frameAt(ahead);
       const k = Math.abs(g.kRight);
       if (k < 2e-4) continue;
       const vSafe = Math.sqrt(grip / k);
@@ -278,9 +287,15 @@ export class Game {
   checkProgress() {
     const car = this.car;
     const cps = this.track.checkpoints;
+    // The car's distance never wraps -- only the track under it does (see
+    // frameAt in world/track.js) -- so a lap is just how much of it has been
+    // run off, and the checkpoints of this lap sit a lap's length further on
+    // than the ones of the last.
+    const len = this.track.length;
+    const lapBase = this.lap * len;
 
-    if (this.cpIndex < cps.length && car.s >= cps[this.cpIndex]) {
-      car.respawnS = Math.max(0, cps[this.cpIndex] - 4);
+    if (this.cpIndex < cps.length && car.s - lapBase >= cps[this.cpIndex]) {
+      car.respawnS = Math.max(0, lapBase + cps[this.cpIndex] - 4);
       this.cpIndex++;
       this.setMessage('CHECKPOINT', `${this.cpIndex} / ${cps.length}`, '#5fd894', 1.1);
       if (this.sound) this.sound.checkpoint();
@@ -293,8 +308,17 @@ export class Game {
     }
     if (car.mode !== MODE.CRASHED) this.crashShown = false;
 
-    if (this.cpIndex >= cps.length && car.s >= this.track.length - 12) {
-      this.finish();
+    if (this.cpIndex >= cps.length && car.s - lapBase >= len - 12) {
+      this.lap++;
+      if (this.lap >= this.laps) this.finish();
+      else {
+        this.cpIndex = 0;
+        const before = this.lapTimes.length ? this.lapTimes[this.lapTimes.length - 1] : 0;
+        this.lapTimes.push(this.timeMs);
+        this.setMessage(`VOLTA ${this.lap + 1} / ${this.laps}`,
+          formatTime(this.timeMs - before), '#ffb43a', 1.6);
+        if (this.sound) this.sound.checkpoint();
+      }
     }
   }
 
@@ -459,7 +483,9 @@ export class Game {
         bestMs: this.best ? this.best.ms : null,
         cpDone: this.cpIndex,
         cpTotal: this.track.checkpoints.length,
-        progress: clamp(car.s / this.track.length, 0, 1),
+        progress: clamp((car.s - this.lap * this.track.length) / this.track.length, 0, 1),
+        lap: this.lap + 1,
+        laps: this.laps,
         ghostDelta: this.ghostDelta,
         message, submessage: sub, messageColor: color,
       });

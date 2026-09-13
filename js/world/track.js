@@ -309,12 +309,14 @@ function gate(md, f, kind) {
   }
 }
 
-function buildGates(frames, checkpoints, length) {
+function buildGates(frames, checkpoints, length, closed) {
   const md = new MeshData();
   const at = s => frames[clamp(Math.round(s / DS), 0, frames.length - 1)];
   gate(md, at(6), 'start');
   for (const s of checkpoints) gate(md, at(s), 'cp');
-  gate(md, at(length - 8), 'end');
+  // On a circuit the finish *is* the start, so the two would be built in the
+  // same place, one inside the other.
+  if (!closed) gate(md, at(length - 8), 'end');
   return md.vertexCount ? [md] : [];
 }
 
@@ -333,10 +335,36 @@ export function walkTrack(pieces) {
 
   return {
     frames, length,
+    closed: closes(frames),
     rawCheckpoints: checkpoints,
     checkpoints: checkpoints.filter(s => s > 12 && s < length - 20),
     bounds: { x0, x1, z0, z1, y0, y1 },
   };
+}
+
+// A circuit is a track whose end meets its own beginning -- same place, same
+// height, same way round. Nothing in a piece list forces that, so it is
+// measured rather than declared: build something that happens to come back and
+// it can be driven in laps, build something that does not and it stays the
+// sprint it always was.
+//
+// The tolerances are tight on purpose. The seam is driven across at speed with
+// the geometry wrapping underneath, so anything the frames do not agree on
+// there is a sideways jolt in the picture -- half a metre is already the width
+// of the painted line.
+const CLOSE_GAP = 0.6;              // metres between the two ends
+const CLOSE_RISE = 0.4;             // metres of step in height
+const CLOSE_TURN = 2 * Math.PI / 180;
+
+export function closes(frames) {
+  const a = frames[0], b = frames[frames.length - 1];
+  if (Math.hypot(b.pos[0] - a.pos[0], b.pos[2] - a.pos[2]) > CLOSE_GAP) return false;
+  if (Math.abs(b.pos[1] - a.pos[1]) > CLOSE_RISE) return false;
+  const fa = quat.fwd(a.sq || a.q), fb = quat.fwd(b.sq || b.q);
+  let turn = Math.atan2(fb[0], fb[2]) - Math.atan2(fa[0], fa[2]);
+  while (turn > Math.PI) turn -= 2 * Math.PI;
+  while (turn < -Math.PI) turn += 2 * Math.PI;
+  return Math.abs(turn) <= CLOSE_TURN;
 }
 
 export function buildTrack(def) {
@@ -349,11 +377,19 @@ export function buildTrack(def) {
     def,
     roadMeshes: [...buildRoad(frames), ...buildSupports(frames), ...tunnels.portals],
     tunnelMeshes: tunnels.bore,
-    gateMeshes: buildGates(frames, base.rawCheckpoints, length),
+    gateMeshes: buildGates(frames, base.rawCheckpoints, length, base.closed),
 
+    // On a circuit only the *geometry* comes back around: a lap's worth of
+    // distance is added to the reading, never taken off it. Everything that
+    // counts distance -- the ghost, the checkpoints, the lap counter -- can
+    // then go on assuming it only ever grows, which is what all of it was
+    // written to assume. `base` is the lap this reading belongs to, and it
+    // goes back onto the frame's own `s` on the way out, so a caller that
+    // stores what it is handed does not quietly fall back a lap.
     frameAt(s) {
       const n = this.frames.length;
-      const x = clamp(s / DS, 0, n - 1.0001);
+      const base = this.closed ? Math.floor(s / this.length) * this.length : 0;
+      const x = clamp((s - base) / DS, 0, n - 1.0001);
       const i = Math.floor(x), t = x - i;
       const a = this.frames[i], b = this.frames[i + 1] || a;
       const sq = quat.nlerp(a.sq, b.sq, t);
@@ -365,21 +401,33 @@ export function buildTrack(def) {
         kRight: a.kRight + (b.kRight - a.kRight) * t,
         gap: a.gap, tunnel: a.tunnel,
         bank: a.bank + (b.bank - a.bank) * t,
-        s: a.s + (b.s - a.s) * t,
+        s: base + a.s + (b.s - a.s) * t,
       };
     },
 
     // Nearest frame within a window, used to detect landings after a jump.
     nearest(worldPos, aroundS, window = 90) {
       const n = this.frames.length;
-      const i0 = clamp(Math.round((aroundS - window) / DS), 0, n - 1);
-      const i1 = clamp(Math.round((aroundS + window) / DS), 0, n - 1);
-      let best = i0, bestD = Infinity;
-      for (let i = i0; i <= i1; i += 2) {
+      const len = this.length;
+      const base = this.closed ? Math.floor(aroundS / len) * len : 0;
+      const mid = Math.round((aroundS - base) / DS);
+      const half = Math.round(window / DS);
+      let best = null, bestD = Infinity;
+      for (let k = -half; k <= half; k += 2) {
+        // A jump can take off before the line and land after it, so on a
+        // circuit the window has to run past the end of the array and come
+        // back in at the front.
+        const i = this.closed ? ((mid + k) % n + n) % n : clamp(mid + k, 0, n - 1);
         const d = v3.dist(this.frames[i].pos, worldPos);
-        if (d < bestD) { bestD = d; best = i; }
+        if (d < bestD) { bestD = d; best = this.frames[i]; }
       }
-      return this.frames[best];
+      if (!this.closed) return best;
+      // Hand back a distance in the same lap the caller is already in, rather
+      // than one that has silently wrapped to the start of the track.
+      let s = base + best.s;
+      if (s - aroundS > len / 2) s -= len;
+      if (aroundS - s > len / 2) s += len;
+      return { ...best, s };
     },
   };
 }

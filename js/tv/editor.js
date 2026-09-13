@@ -15,9 +15,10 @@
 import { PIECE_TYPES, defaults, describe } from '../world/pieces.js';
 import { walkTrack, buildTrack } from '../world/track.js';
 import { testDrive } from '../editor/autopilot.js';
+import { closeCircuit } from '../editor/close.js';
 import { trackDefFrom, saveCustom, loadCustom, setTrackShared } from '../world/customtracks.js';
 import { node, esc, confirmModal } from './screens.js';
-import { getBest, clearRecord } from '../game/game.js';
+import { getBest, clearRecord, DEFAULT_LAPS } from '../game/game.js';
 import { formatTime } from '../game/hud.js';
 import { textEntry } from './keyboard.js';
 import { drawTrackMap } from './map.js';
@@ -281,6 +282,33 @@ export function editorScreen(app, def) {
     return run;
   };
 
+  // Bringing the end of the track back to its own start, so it can be driven
+  // in laps. The join is worked out rather than asked for -- closing a loop by
+  // hand, with pieces of fixed radius, is not something anyone should have to
+  // do -- and it lands as ordinary pieces the builder can then move or delete
+  // like any other.
+  const doClose = () => {
+    if (!pieces.length) { message('Adiciona peças primeiro.', 'bad'); return; }
+    if (walk && walk.closed) { message('Esta pista já é um circuito.', 'good'); return; }
+    message('A fechar o circuito...');
+    // The search walks the whole track a few hundred times, which on a long
+    // one is a visible pause, so let the message paint before it starts.
+    setTimeout(() => {
+      const before = walk ? walk.length : 0;
+      const closed = closeCircuit(pieces);
+      if (!closed) {
+        message('Não consegui fechar daqui. Tenta tirar ou encurtar a última peça.', 'bad');
+        return;
+      }
+      pieces = closed;
+      cursor = pieces.length - 1;
+      dirty = true;
+      refresh();
+      const added = Math.round((walk ? walk.length : 0) - before);
+      message(`Circuito fechado: +${added} m e ${DEFAULT_LAPS} voltas por corrida.`, 'good');
+    }, 30);
+  };
+
   const askName = (then) => app.push(textEntry({
     title: 'Nome da pista', value: name, max: 24,
     onDone: v => { app.pop(); if (v) { name = v; dirty = true; refresh(); then && then(); }
@@ -322,6 +350,7 @@ export function editorScreen(app, def) {
   const menuModal = () => {
     const items = [
       { label: 'Testar com o ' + app.car.name, run: () => { app.pop(); runTest(); } },
+      { label: 'Fechar circuito', run: () => { app.pop(); doClose(); } },
       { label: 'Guardar', run: () => { app.pop(); doSave(false); } },
       { label: 'Guardar e jogar', run: () => { app.pop(); doSave(true); } },
       { label: 'Mudar o nome', run: () => { app.pop(); askName(); } },

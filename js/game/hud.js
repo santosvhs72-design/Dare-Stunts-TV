@@ -530,10 +530,14 @@ export class Hud {
     panel(pad, top, 172, 62);
     ctx.fillStyle = tone(PRINT, 0.5);
     ctx.font = `600 10px ${FONT}`;
-    ctx.fillText('CHECKPOINTS', pad + 14, top + 20);
+    // On a circuit the lap is the thing being counted; on a sprint there is
+    // only ever one, and the checkpoints are what say how far along you are.
+    const laps = st.laps > 1;
+    ctx.fillText(laps ? 'VOLTA' : 'CHECKPOINTS', pad + 14, top + 20);
     ctx.fillStyle = PRINT;
     ctx.font = `700 22px ${FONT}`;
-    ctx.fillText(`${st.cpDone} / ${st.cpTotal}`, pad + 14, top + 46);
+    ctx.fillText(laps ? `${st.lap} / ${st.laps}` : `${st.cpDone} / ${st.cpTotal}`,
+      pad + 14, top + 46);
 
     const bx = pad + 92, bw = 66;
     ctx.fillStyle = SLATE;

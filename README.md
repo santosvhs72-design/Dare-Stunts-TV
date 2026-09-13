@@ -40,6 +40,12 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   existia para o recorde -- em vez de o desenhar a par do carro a conduzir,
   a câmara passa a segui-lo. Pausa e sai a qualquer momento; chega ao fim,
   recomeça sozinha.
+- **Circuitos e voltas**: uma pista cujo fim volta ao próprio início corre-se
+  às voltas (três, por omissão) em vez de de ponta a ponta -- e o construtor
+  tem um **"Fechar circuito"** que calcula o troço de ligação sozinho, porque
+  fechar um traçado à mão, com peças de raio fixo, não é coisa que se deva
+  pedir a ninguém. As pistas que não fecham continuam a ser o percurso de
+  sempre.
 - **Aviso de curva**: duas setas por cima do velocímetro, como os piscas de um
   automóvel a sério, acendem para o lado de uma curva que a velocidade actual
   já não permite fazer — quanto mais tarde, mais forte.
@@ -226,6 +232,23 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   os dois estão premidos, como em qualquer carro deste século — com um
   comando o acelerador é um botão que se segura por hábito, e deixá-lo
   empurrar contra o travão comia um terço da travagem.
+
+- **Num circuito só a geometria dá a volta, a distância não.** O carro conta
+  metros para cima do princípio ao fim da corrida e nunca volta a zero; é o
+  `frameAt()` (`world/track.js`) que faz a distância dar a volta por dentro,
+  e devolve-a outra vez somada à volta em que ia. Assim tudo o que conta
+  distância -- o fantasma, os checkpoints, o contador de voltas -- continua a
+  poder assumir que ela só cresce, que é como está escrito. Fechar ou não
+  fechar é **medido**, não declarado: compara-se o fim com o princípio, com
+  tolerâncias apertadas porque a costura é atravessada a alta velocidade e
+  meio metro de desacordo já é um solavanco.
+- **O troço que fecha o circuito é proposto e depois verificado.** A
+  geometria em `editor/close.js` é só um palpite: o construtor anda a pista
+  em passos de um metro e roda antes de avançar, por isso a estrada que ele
+  assenta nunca é exactamente o arco que a álgebra desenhou, e ao fim de uns
+  quilómetros isso são metros. Em vez de modelar essa diferença, mede-se --
+  cada candidato é andado com o construtor a sério e afinado por Newton
+  contra o erro medido, e só volta um que feche de facto.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem
