@@ -263,7 +263,7 @@ game.onFinish = ({ time, best, record, carRecord }) => {
   const items = [
     { label: 'Outra volta', run: () => { app.pop(); ui.classList.add('hidden'); game.restart(); } },
     { label: 'Ver reposição', run: () => { game.startReplay(); app.push(replayView()); } },
-    { label: 'Escolher pista', run: () => { app.pop(); app.pop(); leaveRace(); } },
+    { label: 'Sair', run: () => { app.pop(); app.pop(); leaveRace(); } },
   ];
   let i = 0;
   const paint = () => {
