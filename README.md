@@ -202,6 +202,17 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   largar o acelerador dava uma curva melhor do que travar. Agora a travagem
   usa `BRAKE_SHARE`, bastante mais baixo; a subviragem com o pé no
   acelerador fica exactamente como estava.
+- **Parar não é limitado pela figura de curva.** `aLatMax` é o que uma ponta
+  do carro aguenta de lado; travar são as quatro rodas a puxar para o mesmo
+  sítio, num nariz que acabou de mergulhar sobre elas, com o motor a ajudar.
+  Cortar o travão a 0,95 da aderência lateral tornava o `brake` de cada carro
+  letra morta — todos travavam ao que a borracha deles desse, e as barras de
+  "Travagem" não queriam dizer nada. O corte passou para `BRAKE_GRIP` (1.35),
+  acima do que qualquer carro pede, e cada carro tem o seu número: 16 / 18,5 /
+  21 m/s², pela mesma ordem das barras. O corte continua a morder onde a
+  aderência de facto desapareceu: na berma, e no alto de uma lomba onde não há
+  peso nenhum nas rodas. Travar de 200 para 80 km/h passou de uma eternidade
+  para 81 m no Speed King, contra 330 m só a largar o acelerador.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem

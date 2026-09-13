@@ -9,6 +9,14 @@ const WALL_BITE = 0.95;     // speed lost per m/s of sideways impact
 const WALL_SCRUB = 18;      // m/s^2 lost while held hard against the barrier
 const GRIP_SHARE = 0.4;     // how much of the friction budget power steals
 const BRAKE_SHARE = 0.15;   // ... and how much braking does, nose-down and loaded
+// Stopping is not limited by the cornering figure. aLatMax is what one end of
+// the car can hold sideways; braking is all four wheels pulling the same way,
+// on a nose that has just dived onto them, with the engine helping. Capping the
+// brake at 0.95 of the cornering limit made the per-car brake figure below dead
+// letter -- every car stopped at whatever its grip allowed and the "Travagem"
+// bars meant nothing. The cap still bites where grip really is gone: on the
+// kerb, and over a crest where there is no weight on the wheels at all.
+const BRAKE_GRIP = 1.35;
 const HANDBRAKE_HOLD = 0.5; // fraction of cornering grip left when it is pulled
 const HANDBRAKE_YAW = 1.7;  // rad/s of extra rotation as the rear steps out
 const VU_DECAY = 3.2;       // how fast the tyres scrub a slide off
@@ -21,7 +29,7 @@ const SUBSTEP = 1 / 120;
 export const DEFAULT_PHYS = {
   vmax: 63,          // m/s asymptote under full throttle
   accel: 8.8,
-  brake: 17,
+  brake: 18.5,
   mu: 1.45,
   muCurb: 0.95,      // two wheels over the line, on the kerb
   maxSteer: 0.6,     // rad, standstill lock
@@ -154,7 +162,7 @@ export class Car {
       aLong += input.throttle * P.accel * Math.max(0, 1 - absV / P.vmax) * (this.onCurb ? 0.85 : 1);
     }
     if (input.brake > 0) {
-      const bmax = Math.min(P.brake, aLatMax * 0.95);
+      const bmax = Math.min(P.brake, aLatMax * BRAKE_GRIP);
       if (v > 0.4) aLong -= input.brake * bmax;
       else aLong -= input.brake * P.accel * 0.45;   // reverse
     }

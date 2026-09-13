@@ -11,7 +11,7 @@ export const CARS = [
     best: 'Circuitos com retas longas e curvas abertas',
     bars: { Velocidade: 0.95, Aderência: 0.5, Travagem: 0.55 },
     phys: {
-      vmax: 76, accel: 9, brake: 17, mu: 1.28, muCurb: 0.86,
+      vmax: 76, accel: 9, brake: 16, mu: 1.28, muCurb: 0.86,
       maxSteer: 0.55, wheelbase: 2.95, coastBase: 2.9, coastDrag: 0.0006, assist: 0.75,
     },
     img: 'img/lebre.png',
@@ -31,7 +31,7 @@ export const CARS = [
     best: 'Circuitos mistos, com retas e algumas curvas lentas',
     bars: { Velocidade: 0.72, Aderência: 0.7, Travagem: 0.7 },
     phys: {
-      vmax: 63, accel: 9.6, brake: 17, mu: 1.45, muCurb: 0.95,
+      vmax: 63, accel: 9.6, brake: 18.5, mu: 1.45, muCurb: 0.95,
       maxSteer: 0.6, wheelbase: 2.75, coastBase: 3.2, coastDrag: 0.0011, assist: 0.85,
     },
     img: 'img/corsario.png',
@@ -48,7 +48,7 @@ export const CARS = [
     best: 'Circuitos lentos, com muitas curvas apertadas',
     bars: { Velocidade: 0.5, Aderência: 0.95, Travagem: 0.9 },
     phys: {
-      vmax: 48, accel: 10.5, brake: 17, mu: 1.66, muCurb: 1.05,
+      vmax: 48, accel: 10.5, brake: 21, mu: 1.66, muCurb: 1.05,
       maxSteer: 0.66, wheelbase: 2.55, coastBase: 3.6, coastDrag: 0.0021, assist: 0.95,
     },
     img: 'img/tenaz.png',
