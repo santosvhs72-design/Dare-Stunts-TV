@@ -526,6 +526,28 @@ export class Hud {
       ctx.fillText(label, w / 2, top + 84);
     }
 
+    // Laps already done, under the clock, with the best of them picked out.
+    // Only on a circuit, and only once there is one -- on a single run the
+    // clock above is the whole story and this would be an empty box.
+    const done = st.lapTimes || [];
+    if (done.length) {
+      const rowH = 22, y0 = top + (st.ghostDelta != null ? 100 : 62);
+      const bw = 150;
+      panel(w / 2 - bw / 2, y0, bw, rowH * done.length + 10);
+      const best = Math.min(...done);
+      ctx.font = `700 15px ${MONO}`;
+      done.forEach((ms, i) => {
+        const y = y0 + 22 + i * rowH;
+        const top3 = ms === best && done.length > 1;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = tone(PRINT, 0.5);
+        ctx.fillText(`V${i + 1}`, w / 2 - bw / 2 + 14, y);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = top3 ? GREEN : PRINT;
+        ctx.fillText(formatTime(ms), w / 2 + bw / 2 - 14, y);
+      });
+    }
+
     ctx.textAlign = 'left';
     panel(pad, top, 172, 62);
     ctx.fillStyle = tone(PRINT, 0.5);

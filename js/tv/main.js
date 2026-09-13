@@ -242,7 +242,7 @@ function listModal(title, items, onBack) {
   };
 }
 
-game.onFinish = ({ time, best, record, carRecord }) => {
+game.onFinish = ({ time, best, record, carRecord, lapTimes }) => {
   const who = best && best.car ? ` · ${carById(best.car).name}` : '';
   const bestLine = `Recorde ${formatTime(best && best.ms)}${esc(who)} · alvo ${formatTime(game.def.target * 1000)}`;
   // Three outcomes, not two: the overall record (unmistakable, it needs no
@@ -251,10 +251,19 @@ game.onFinish = ({ time, best, record, carRecord }) => {
   // you are not fastest with would only ever feel like losing), or neither.
   const title = record ? 'Novo recorde!' : carRecord ? `Melhor volta com o ${esc(game.car0.name)}!` : 'Terminado';
   const sub = record ? `Melhor tempo em ${esc(game.def.name)} com o ${esc(game.car0.name)}` : bestLine;
+  // On a circuit the total is only half the story: which lap was the good one
+  // is the part worth looking at, so every one of them is listed with the best
+  // picked out.
+  const best2 = lapTimes && lapTimes.length > 1 ? Math.min(...lapTimes) : null;
+  const laps = best2 == null ? '' : `<div class="laps">${lapTimes.map((ms, i) =>
+    `<div class="lap${ms === best2 ? ' best' : ''}"><span>Volta ${i + 1}</span>`
+    + `<b>${formatTime(ms)}</b></div>`).join('')}</div>`;
+
   const el = node(`<div class="modal"><div class="panel centered">
     <h2>${title}</h2>
     <div class="bigtime">${formatTime(time)}</div>
     <p class="sub">${sub}</p>
+    ${laps}
     <div class="menu" id="mi" style="margin-top:2vh"></div>
     <div class="legend"><span class="a"><em>A</em>escolher</span>
       <span class="pad" id="padStatus"></span></div>

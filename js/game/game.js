@@ -169,6 +169,7 @@ export class Game {
     this.cpIndex = 0;
     this.lap = 0;
     this.lapTimes = [];
+    this.lapStart = 0;
     this.state = STATE.COUNTDOWN;
     this.countdown = 3.6;
     this.msg = null;
@@ -313,18 +314,29 @@ export class Game {
       if (this.lap >= this.laps) this.finish();
       else {
         this.cpIndex = 0;
-        const before = this.lapTimes.length ? this.lapTimes[this.lapTimes.length - 1] : 0;
-        this.lapTimes.push(this.timeMs);
         this.setMessage(`VOLTA ${this.lap + 1} / ${this.laps}`,
-          formatTime(this.timeMs - before), '#ffb43a', 1.6);
+          formatTime(this.closeLap()), '#ffb43a', 1.6);
         if (this.sound) this.sound.checkpoint();
       }
     }
   }
 
+  // The lap just crossed, in its own right rather than as a running total.
+  closeLap() {
+    const ms = this.timeMs - this.lapStart;
+    this.lapTimes.push(ms);
+    this.lapStart = this.timeMs;
+    return ms;
+  }
+
+  bestLap() {
+    return this.lapTimes.length ? Math.min(...this.lapTimes) : null;
+  }
+
   finish() {
     this.state = STATE.FINISHED;
     this.finalTime = this.timeMs;
+    this.closeLap();      // the one being driven as the line came up
     // Kept regardless of whether this lap set any record: a replay is about
     // watching the drive just made, not about who holds the track.
     this.lastLap = { car: this.car0.id, p: this.ghostRec.p.slice(), ms: this.finalTime };
@@ -356,6 +368,7 @@ export class Game {
       // Worth telling apart from the overall record only when it is not also
       // one: "new record" already implies a new personal best with this car.
       carRecord: newCarRecord && !this.newRecord,
+      lapTimes: this.lapTimes.slice(),
     });
   }
 
@@ -486,6 +499,7 @@ export class Game {
         progress: clamp((car.s - this.lap * this.track.length) / this.track.length, 0, 1),
         lap: this.lap + 1,
         laps: this.laps,
+        lapTimes: this.lapTimes,
         ghostDelta: this.ghostDelta,
         message, submessage: sub, messageColor: color,
       });

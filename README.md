@@ -45,7 +45,9 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   tem um **"Fechar circuito"** que calcula o troço de ligação sozinho, porque
   fechar um traçado à mão, com peças de raio fixo, não é coisa que se deva
   pedir a ninguém. As pistas que não fecham continuam a ser o percurso de
-  sempre.
+  sempre. Os tempos de cada volta ficam à vista por baixo do relógio à medida
+  que são feitas, com a melhor realçada, e o ecrã de fim de corrida lista-os
+  todos.
 - **Aviso de curva**: duas setas por cima do velocímetro, como os piscas de um
   automóvel a sério, acendem para o lado de uma curva que a velocidade actual
   já não permite fazer — quanto mais tarde, mais forte.

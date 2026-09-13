@@ -154,6 +154,16 @@ h1.brand span{color:#ffb43a}
 .key.on{border-color:#ffb43a;background:rgba(56,80,116,.95);transform:scale(1.08)}
 .key.wide{flex:3 1 0;font-size:1.1vw}
 
+/* Tempos por volta no fim de uma corrida em circuito: uma linha por volta,
+   a melhor realçada, porque num circuito o total diz menos do que ela. */
+.laps{display:flex;flex-direction:column;gap:.4vh;margin:1vh auto 0;
+  max-width:22vw;font-size:1.2vw}
+.lap{display:flex;justify-content:space-between;gap:1.5vw;
+  padding:.5vh 1vw;border-radius:8px;background:rgba(28,38,54,.6);color:#9fb2ca}
+.lap b{color:#eef3f9;font-variant-numeric:tabular-nums}
+.lap.best{background:rgba(79,191,122,.16)}
+.lap.best b{color:#5fd894}
+
 .bigtime{font-size:5vw;font-weight:800;font-variant-numeric:tabular-nums;
   color:#ffb43a;line-height:1.1;margin:1vh 0}
 .centered{text-align:center}
