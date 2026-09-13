@@ -29,7 +29,7 @@ export const node = html => {
 // Shown on the home screen so it is obvious at a glance which build a
 // television is actually running -- two APKs with the same name and package
 // are otherwise indistinguishable once installed.
-export const BUILD = '3.8-tv';
+export const BUILD = '3.9-tv';
 
 export const allTracks = () => [...TRACKS, ...loadCustom()];
 
@@ -51,10 +51,10 @@ function centreRail(inner, index) {
 export function homeScreen(app) {
   const items = [
     { id: 'play', label: 'Jogar', hint: 'escolher carro e pista' },
-    { id: 'build', label: 'Construir pista', hint: 'editor com comando' },
+    { id: 'build', label: 'Construir pista', hint: '' },
     { id: 'sound', label: 'Som', hint: '' },
     { id: 'profile', label: 'Perfil', hint: '' },
-    { id: 'pad', label: 'Comando', hint: 'ver o que o jogo recebe' },
+    { id: 'pad', label: 'Testar Comando', hint: 'ver o que o jogo recebe' },
     { id: 'quit', label: 'Sair', hint: 'fechar a aplicação' },
   ];
   let i = 0;
@@ -94,12 +94,7 @@ export function homeScreen(app) {
         else if (id === 'build') app.openEditor(null);
         else if (id === 'profile') app.push(profilesScreen(app));
         else if (id === 'pad') app.push(padScreen(app));
-        else if (id === 'quit') app.push(confirmModal({
-          title: 'Fechar o Dare Stunts?',
-          text: 'Voltas ao ecrã inicial da televisão. Os recordes e as pistas ficam guardados.',
-          yes: 'Fechar', no: 'Ficar',
-          onYes: () => app.exit(), onNo: () => app.pop(),
-        }));
+        else if (id === 'quit') app.exit();
         else { app.sound.setMuted(!app.sound.muted); paint(); }
       }
     },

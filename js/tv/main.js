@@ -210,7 +210,7 @@ function pauseModal() {
     { label: () => `Fantasma: ${game.showGhost ? 'ligado' : 'desligado'}`,
       run: () => { toggleGhost(); view.paint(); } },
     { label: 'Reiniciar', run: () => { app.pop(); ui.classList.add('hidden'); game.restart(); } },
-    { label: 'Escolher pista', run: () => { app.pop(); app.pop(); leaveRace(); } },
+    { label: 'Abandonar Corrida', run: () => { app.pop(); app.pop(); leaveRace(); } },
   ];
   view = listModal('Pausa', items, () => items[0].run());
   return view;

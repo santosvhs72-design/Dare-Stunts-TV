@@ -95,7 +95,7 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Opções do item | ↓ | ↓ |
 | Pausa | Voltar / Menu | Start |
 | Ligar/desligar o ghost | menu de pausa | Y, ou o menu de pausa |
-| Ver o que o comando envia (e o que a condução faz dele) | menu inicial &rarr; Comando | idem |
+| Ver o que o comando envia (e o que a condução faz dele) | menu inicial &rarr; Testar Comando | idem |
 | Trocar ou criar perfil | menu inicial &rarr; Perfil | idem |
 | Ver recordes de uma pista | seletor de pistas &rarr; ↓ &rarr; Ver recordes | idem |
 | Ver a reposição da última volta | ecrã de fim de volta &rarr; Ver reposição | idem |
