@@ -73,8 +73,8 @@ export class Input {
 
       const btn = i => p.buttons[i] ? (p.buttons[i].value || (p.buttons[i].pressed ? 1 : 0)) : 0;
       throttle = Math.max(throttle, btn(7), btn(0), btn(12) ? 1 : 0);
-      brake = Math.max(brake, btn(6), btn(1), btn(13) ? 1 : 0);
-      if (btn(2) > 0.5) handbrake = true;
+      brake = Math.max(brake, btn(6), btn(2), btn(13) ? 1 : 0);
+      if (btn(1) > 0.5) handbrake = true;
       if (btn(14) > 0.5) steer = -1;
       if (btn(15) > 0.5) steer = 1;
 

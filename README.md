@@ -103,10 +103,7 @@ de TV não têm mais do que isso. Um comando de jogo ganha atalhos.
 | Ver pistas partilhadas | seletor de pistas &rarr; última pista da fila | idem |
 | Fechar a aplicação | menu inicial &rarr; Sair, ou Voltar | idem |
 
-A conduzir: A acelera, B trava, X é o travão de mão, stick esquerdo ou cruzeta
-vira -- RT/LT e cima/baixo da cruzeta continuam a acelerar/travar também, para
-quem preferir os gatilhos. Y liga e desliga o ghost a meio da volta sem a
-parar, e Start pausa, tal como no resto da aplicação.
+A conduzir: RT acelera, LT trava, stick esquerdo vira, A é travão de mão.
 Num teclado, `G` liga e desliga o ghost sem parar a volta.
 
 ## Como está feito
