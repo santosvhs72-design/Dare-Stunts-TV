@@ -82,7 +82,34 @@ const COLS = [
   [1.05,    0.72, -0.24,   0.66, -0.275,  0.62, -0.86],
 ];
 
-const NOSE = { z: 2.05, y: -0.37, x: 0.86 };  // far end of the bonnet
+// Far end of the bonnet. It sits high enough to be a bonnet rather than a
+// stripe: at this field of view a surface that is nearly edge-on to the eye
+// covers almost none of the picture, and every centimetre it is raised buys
+// back a band of it. CREST is how the nose is shaped across its width -- wings
+// standing over the wheels, a channel down the middle -- as a rise above y, one
+// value per column of COLS. The crease costs three faces and is the difference
+// between a bonnet and a strip of paint, because the light does the rest.
+const NOSE = { z: 2.05, y: -0.31, x: 0.92 };
+const CREST = [-0.035, 0.05, -0.02, -0.02, 0.05, -0.035];
+
+// Wing mirrors, out on the wings where a car of this vintage put them. Small,
+// and worth every pixel: they are the only part of the car that stands above
+// its own bonnet, so they are what says the bonnet is a bonnet.
+const MIRROR = { x: 0.95, z: 1.40, foot: -0.33, base: -0.242, top: -0.172, wide: 0.078 };
+
+// The door casing, from the outer end of the fascia out to the edge of the
+// picture. Without it the dash is a band across the bottom of the screen with
+// daylight either side of it; with it the cockpit closes.
+const DOOR = { x: 1.46, top: -0.40, bottom: -1.15, z: 0.50 };
+
+// Wipers, parked. They lie on the glass just above its bottom edge, which in
+// this projection puts them across the bonnet -- which is exactly where they
+// are in a real car, and why they are worth two lines: nothing else says so
+// plainly that there is a windscreen between the driver and the road.
+const WIPERS = [
+  [[0.46, -0.214, 0.87], [-0.12, -0.132, 0.83]],
+  [[-0.28, -0.218, 0.85], [-0.80, -0.146, 0.82]],
+];
 // The rim crosses the bottom of the speedometer, as a real one does -- which
 // does hide the needle at walking pace. That is what the figures in the left
 // panel are for; dropping the wheel far enough to clear the dial left the
@@ -156,6 +183,8 @@ export class Hud {
       [c[0], c[2] * sit, c[1]], [c[0], c[4] * sit, c[3]], [c[0], c[6] * sit, c[5]]]);
 
     this.drawBonnet(ctx, col, t, sit);
+    this.drawWipers(ctx, sit);
+    this.drawDoors(ctx, col, t, sit);
     this.drawDash(ctx, col, t);
     this.drawCluster(ctx, col, st, t);
     this.drawWheel(ctx, st, t, sit);
@@ -169,9 +198,78 @@ export class Hud {
   // which is the single strongest cue that the cockpit is in the same space as
   // the road under it.
   drawBonnet(ctx, col, t, sit) {
-    const far = x => [x * NOSE.x / 1.05, NOSE.y * sit, NOSE.z];
+    const far = i => [col[i][0] * NOSE.x / 1.05, (NOSE.y + CREST[i]) * sit, NOSE.z];
+    // Mirrors first, so that the bonnet paints over the bottom of each stalk:
+    // this is 2D, there is no depth buffer to hide it, and a stalk that carries
+    // on below the metal it is bolted to is worse than no mirror at all.
+    this.drawMirrors(ctx, t, sit);
     for (let i = 0; i < col.length - 1; i++) {
-      this.face([far(col[i][0]), far(col[i + 1][0]), col[i + 1][1], col[i][1]], t.body, 0.62);
+      this.face([far(i), far(i + 1), col[i + 1][1], col[i][1]], t.body, 0.62);
+    }
+    // The far edge, darkened. Body paint and scenery can land on the same
+    // colour -- a green car on green grass is exactly the case -- and then the
+    // bonnet stops being an object and becomes part of the field behind it.
+    // One dark line along the top of the metal settles it whatever the paint.
+    ctx.strokeStyle = tone(t.body, 0.34);
+    ctx.lineWidth = Math.max(1.5, this.h * 0.003);
+    ctx.beginPath();
+    for (let i = 0; i < col.length; i++) {
+      const p = far(i);
+      if (i) ctx.lineTo(this.px(p), this.py(p)); else ctx.moveTo(this.px(p), this.py(p));
+    }
+    ctx.stroke();
+  }
+
+  // A housing turned away from the driver and a face turned towards them, with
+  // sky in it. The sky is not a reflection of anything -- there is nothing to
+  // reflect it from at this angle -- it is what a mirror out on a wing actually
+  // shows from the driver's seat nine times out of ten.
+  drawMirrors(ctx, t, sit) {
+    const z = MIRROR.z;
+    for (const s of [-1, 1]) {
+      const x0 = s * (MIRROR.x - MIRROR.wide), x1 = s * (MIRROR.x + MIRROR.wide);
+      const yb = MIRROR.base * sit, yt = MIRROR.top * sit;
+      // Stalk, from under the wing up to the housing. Its foot is below the
+      // bonnet line on purpose -- the bonnet is painted over it afterwards.
+      this.face([[s * (MIRROR.x - 0.028), MIRROR.foot * sit, z],
+                 [s * (MIRROR.x + 0.028), MIRROR.foot * sit, z],
+                 [s * (MIRROR.x + 0.028), yb, z], [s * (MIRROR.x - 0.028), yb, z]], t.dash, 0.44);
+      // Housing and the glass set into it, both in the same plane, so the
+      // surround stays an even width however far away the mirror is. The lid
+      // over the top is what stops the whole thing reading as a road sign: a
+      // flat card has no face turned to the sky, and this one does.
+      this.face([[x0, yb, z], [x1, yb, z], [x1, yt, z], [x0, yt, z]], t.body, 0.5);
+      this.face([[x0, yt, z], [x1, yt, z], [x1, yt - 0.008, z + 0.08],
+                 [x0, yt - 0.008, z + 0.08]], t.body, 0.6);
+      const kx = 0.02, ky = 0.011;
+      this.face([[x0 + s * kx, yb + ky, z], [x1 - s * kx, yb + ky, z],
+                 [x1 - s * kx, yt - ky, z], [x0 + s * kx, yt - ky, z]], '#6d8fb2', 0.8);
+    }
+  }
+
+  drawWipers(ctx, sit) {
+    ctx.strokeStyle = tone(DARKEST, 0.8);
+    ctx.lineCap = 'round';
+    for (const [a, b] of WIPERS) {
+      const p = [a[0], a[1] * sit, a[2]], q = [b[0], b[1] * sit, b[2]];
+      ctx.lineWidth = Math.max(1.5, this.h * 0.0055);
+      ctx.beginPath();
+      ctx.moveTo(this.px(p), this.py(p));
+      ctx.lineTo(this.px(q), this.py(q));
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  }
+
+  // The casing that runs from the end of the fascia out to the side of the
+  // picture: the door top, and the card below it falling away into the footwell.
+  drawDoors(ctx, col, t, sit) {
+    const last = col.length - 1;
+    for (const [i, s] of [[0, -1], [last, 1]]) {
+      const sill = col[i][1], foot = col[i][3];
+      const top = [s * DOOR.x, DOOR.top * sit, DOOR.z];
+      const bottom = [s * DOOR.x, DOOR.bottom * sit, DOOR.z];
+      this.face([sill, top, bottom, foot], t.dash, 0.36);
     }
   }
 
@@ -186,6 +284,17 @@ export class Hud {
     for (let i = 0; i < col.length - 1; i++) {
       this.face([col[i][2], col[i + 1][2], col[i + 1][3], col[i][3]], t.dash, AMBIENT);
     }
+    // The seam where the two meet. A moulding is two pieces, and at this size
+    // the join between them is a hairline of light -- without it the whole
+    // fascia is one slab and the step in the lighting has nothing to land on.
+    ctx.strokeStyle = tone(t.rim, 0.88);
+    ctx.lineWidth = Math.max(1, this.h * 0.0022);
+    ctx.beginPath();
+    for (let i = 0; i < col.length; i++) {
+      const p = col[i][2];
+      if (i) ctx.lineTo(this.px(p), this.py(p)); else ctx.moveTo(this.px(p), this.py(p));
+    }
+    ctx.stroke();
   }
 
   // Windscreen posts. A hundred degrees of horizontal field of view puts the
@@ -482,6 +591,19 @@ export class Hud {
     const boss = [];
     for (let i = 0; i < 16; i++) boss.push(at(turn + i / 16 * Math.PI * 2, hubR));
     this.face(boss, t.rim, 0.5);
+
+    // Where the hands go. Two thickenings of the rim at ten and two, darker
+    // than the rest of it because they are the one part of a wheel that is not
+    // moulded plastic -- and the one part of it this view ever shows, since the
+    // hub sits below the bottom of the picture.
+    for (const off of [-0.62, 0.62]) {
+      const a0 = turn + Math.PI / 2 + off - 0.30, a1 = turn + Math.PI / 2 + off + 0.30;
+      const grip = [];
+      const steps = 6;
+      for (let i = 0; i <= steps; i++) grip.push(at(a0 + (a1 - a0) * i / steps, R - tube * 1.5));
+      for (let i = steps; i >= 0; i--) grip.push(at(a0 + (a1 - a0) * i / steps, R + tube * 1.5));
+      this.face(grip, t.rim, 0.30);
+    }
 
     // The mark that says where straight ahead is.
     const m0 = at(turn + Math.PI / 2 - 0.07, R - tube), m1 = at(turn + Math.PI / 2 + 0.07, R - tube);

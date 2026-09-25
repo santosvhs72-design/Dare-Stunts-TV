@@ -14,7 +14,7 @@
 // Samples sit at fixed time intervals, so sample k is the car at k*STEP_MS and
 // playback needs no timestamps.
 import { v3, quat, mat4 } from '../core/math.js';
-import { MeshData, hex, shade } from '../core/mesh.js';
+import { buildCarMesh } from './carmesh.js';
 import { MODE } from './car.js';
 import { profileKey } from '../ui/profiles.js';
 
@@ -202,23 +202,10 @@ export class GhostPlayer {
 /* ------------------------------------------------------------------ mesh -- */
 
 // The game is first person and has never needed a car model, so the ghost
-// brings its own. Kept deliberately blocky to match the flat-shaded world.
+// brings its own -- in two roles: somebody else's lap alongside yours, and your
+// own lap played back. Same model, different paint; it is built in carmesh.js.
 // Local +Z forward, +Y up, origin on the road surface.
-export function buildGhostMesh(accentHex) {
-  const col = hex(accentHex || '#ffb43a');
-  const dark = shade(col, 0.35);
-  const glass = shade(col, 0.7);
-  const m = new MeshData();
-  m.box(0, 0.52, 0.05, 0.86, 0.26, 2.00, col);      // chassis
-  m.box(0, 0.95, -0.25, 0.68, 0.22, 0.92, glass);   // cabin
-  m.box(0, 0.80, 1.55, 0.70, 0.10, 0.45, col);      // nose
-  m.box(0, 1.02, -1.72, 0.72, 0.06, 0.12, col);     // rear wing
-  for (const sx of [-1, 1]) {
-    for (const sz of [-1, 1]) {
-      m.box(sx * 0.88, 0.30, sz * 1.32, 0.10, 0.30, 0.30, dark);
-    }
-  }
-  return m;
-}
+export const buildGhostMesh = theme => buildCarMesh(theme, { ghost: true });
+export const buildReplayMesh = theme => buildCarMesh(theme, { ghost: false });
 
 export const ghostModelMatrix = (pose) => mat4.model(pose.q, pose.pos);

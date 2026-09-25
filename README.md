@@ -67,7 +67,14 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   formas do próprio jogo, em SVG de 6 KB — nada de imagens pesadas no APK.
 - **Cockpit ao estilo de 1990**: painéis planos, mostradores redondos com
   ponteiro e números impressos, e nada de gradientes — porque o Stunts também
-  não os tinha.
+  não os tinha. Ao volante vê-se o capô com o vinco a meio, os espelhos
+  retrovisores nas asas, as escovas do limpa-vidros paradas contra o capô e as
+  portas a fechar os cantos de baixo — tudo modelado em metros e projetado pela
+  mesma câmara que desenha a estrada, não desenhado por cima dela.
+- **Um carro a sério visto de fora**: o fantasma do recordista e a reposição da
+  volta deixaram de ser oito caixas. O corpo é feito de secções ao longo do
+  comprimento, estreitando para os dois extremos, com tejadilho, vidros, jantes,
+  farolins, asa traseira e a risca da casa — e cada carro no seu tom.
 - **Som ao navegar**: um clique curto sempre que o realce muda de item num
   menu ou numa fila — nunca ao conduzir, onde as mesmas teclas viram o volante.
 
@@ -194,11 +201,35 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   visível contra o céu por trás. Por isso `Renderer.fogColor` é um campo da
   instância, escrito de novo em cada `Game.load()` (`skyFogColor()` em
   `world/scenery.js`), e não uma constante fixa como era antes.
+- **O que está mesmo à frente do vidro não se desenha por cima do vidro.** O
+  cockpit (`game/hud.js`) é um modelo em metros com o olho na origem, projetado
+  pelo mesmo buraco de alfinete que a câmara usa -- por isso o capô foge para o
+  mesmo ponto de fuga que a estrada e apanha a luz pela mesma conta. Foi isso
+  que tornou barato dar-lhe forma: um vinco a meio custa três faces e o resto
+  fá-lo a luz; as escovas do limpa-vidros aparecem recortadas contra o capô
+  porque é ali que a geometria as põe, não porque alguém as tenha lá posto; e os
+  espelhos desenham-se *antes* do capô, para que o capô tape o pé de cada haste
+  -- em Canvas 2D não há profundidade nenhuma para o fazer sozinha.
+- **Uma caixa não tem forma nenhuma para a luz encontrar.** O carro visto de
+  fora era oito caixas alinhadas com os eixos, e o problema não era o número de
+  triângulos -- um carro não é nada ao lado de um quilómetro de estrada -- era
+  que cada face estava virada exactamente como uma face do mundo, e o conjunto
+  lia-se como bagagem. `game/carmesh.js` constrói o corpo por secções ao longo
+  do comprimento, cada uma com o ombro chanfrado, unidas face a face: continua
+  tudo plano, como o resto do mundo, mas as faces apontam para lados suficientes
+  para o mesmo shader que ilumina a pista distinguir um capô de uma ilharga sem
+  que ninguém lho diga.
+- **O ambiente é um chão de luz, não um nível.** A reposição desenhava o carro
+  com `uAmbient = 1`, o que no shader quer dizer *sem sombreado nenhum*: com as
+  oito caixas ainda passava, porque cada caixa já vinha com as faces escurecidas
+  à mão, mas apagava por completo a forma de um corpo que conta com a luz. Agora
+  vai a 0.5, como o resto da imagem.
 - **A reposição é o mesmo fantasma, visto de fora em vez de a par do carro.**
   `Game.startReplay()` (`game/game.js`) usa o próprio `GhostPlayer` e o mesmo
-  `buildGhostMesh()` do fantasma do recorde -- só a câmara muda, para uma
+  modelo do fantasma do recorde -- só a câmara muda, para uma
   posição atrás e acima do carro derivada da orientação gravada, e o modelo
-  passa a opaco em vez de translúcido. E o ecrã de reposição
+  passa a opaco em vez de translúcido, e com a pintura do carro em vez de um
+  só tom (um fantasma é de outra pessoa e tem de se ler como tal ao relance). E o ecrã de reposição
   (`replayView()`, `tv/main.js`) não leva a classe `.modal`: `restack()` já
   escondia o que estivesse por baixo do topo da pilha sempre que esse topo
   não fosse modal, e é exactamente esse comportamento, já ali, que tira o

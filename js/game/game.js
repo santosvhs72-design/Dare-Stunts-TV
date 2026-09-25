@@ -5,7 +5,7 @@ import { Car, MODE, gearFor } from './car.js';
 import { CARS } from './cars.js';
 import { Hud, formatTime } from './hud.js';
 import { clamp, quat, v3 } from '../core/math.js';
-import { GhostRecorder, GhostPlayer, buildGhostMesh, ghostModelMatrix,
+import { GhostRecorder, GhostPlayer, buildGhostMesh, buildReplayMesh, ghostModelMatrix,
          loadGhost, saveGhost, clearGhost, lapSlice,
          GHOST_ALPHA, GHOST_AMBIENT } from './ghost.js';
 import { profileKey } from '../ui/profiles.js';
@@ -174,7 +174,7 @@ export class Game {
     if (best && data.ms > best.ms + 1) return;
     this.ghost = new GhostPlayer(data, this.track);
     const car = CARS.find(c => c.id === data.car);
-    this.ghostChunk = r.upload(buildGhostMesh(car && car.theme.accent));
+    this.ghostChunk = r.upload(buildGhostMesh((car || this.car0).theme));
   }
 
   restart() {
@@ -426,7 +426,7 @@ export class Game {
     if (!this.lastLap) return false;
     if (this.replayChunk) this.renderer.dispose([this.replayChunk]);
     this.replay = new GhostPlayer(this.lastLap, this.track);
-    this.replayChunk = this.renderer.upload(buildGhostMesh(this.car0.theme.accent));
+    this.replayChunk = this.renderer.upload(buildReplayMesh(this.car0.theme));
     this.replayTimeMs = 0;
     this.replayPose = this.replay.at(0);
     this.replayPaused = false;
@@ -473,10 +473,12 @@ export class Game {
 
     // Drawn last, over the finished scene, because it is blended.
     if (this.state === STATE.REPLAY && this.replayPose && this.replayChunk) {
-      // Full ambient and opaque: this is the car, not a hint of one, so it
-      // reads nothing like the faint record-holder ghost drawn alongside a
-      // race in progress below.
-      r.drawGhost(this.replayChunk, ghostModelMatrix(this.replayPose), 1, 1);
+      // Opaque, and lit like everything else in the picture: this is the car,
+      // not a hint of one, so it reads nothing like the faint record-holder
+      // ghost drawn alongside a race in progress below. The ambient here is a
+      // floor, not a level -- a flat 1 would light every face of the car the
+      // same and undo the whole point of modelling it (see carmesh.js).
+      r.drawGhost(this.replayChunk, ghostModelMatrix(this.replayPose), 0.5, 1);
     } else if (this.showGhost && this.ghost && this.ghostChunk
         && this.state !== STATE.COUNTDOWN) {
       const pose = this.ghost.at(this.lapTime());
