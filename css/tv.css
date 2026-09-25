@@ -119,9 +119,21 @@ h1.brand span{color:#ffb43a}
 /* --- Modal panels (add piece, params, menu, keyboard, pause, result) --- */
 .modal{position:absolute;inset:0;background:rgba(5,8,12,.82);
   display:flex;align-items:center;justify-content:center;padding:6vh 6vw}
+/* Um painel com muitas entradas nao cabe em 1080 linhas -- sete opcoes de pista,
+   dez voltas, um teclado inteiro. Em vez de cortar o que nao cabe, o painel
+   rola; a seleccao e trazida para dentro a cada movimento (keepVisible, em
+   tv/main.js), porque num televisor nada tem foco do DOM que o faca sozinho. A
+   barra de rolagem fica escondida: no sofa nao se arrasta nada. */
 .panel{background:#121924;border:2px solid rgba(120,160,210,.2);border-radius:18px;
-  padding:3vh 2.6vw;min-width:34vw;max-width:80vw;max-height:88vh;overflow:hidden;
+  padding:3vh 2.6vw;min-width:34vw;max-width:80vw;max-height:88vh;
+  overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;
   box-shadow:0 3vh 8vh rgba(0,0,0,.6)}
+.panel::-webkit-scrollbar{width:0;height:0}
+/* Dentro de um painel as entradas andam mais juntas do que no ecrã inicial:
+   sete opções com o espaçamento de lá fora já não cabiam em 1080 linhas, e o
+   ecrã inicial, esse, tem espaço de sobra. */
+.panel .menu{gap:1.2vh}
+.panel .item{padding:1.8vh 2vw}
 .panel h2{font-size:2.2vw;margin-bottom:1.4vh}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1vh 1vw;margin-top:1vh}
 .gcell{background:rgba(28,38,54,.7);border:2px solid rgba(120,160,210,.14);
@@ -155,10 +167,14 @@ h1.brand span{color:#ffb43a}
 .key.wide{flex:3 1 0;font-size:1.1vw}
 
 /* Tempos por volta no fim de uma corrida em circuito: uma linha por volta,
-   a melhor realçada, porque num circuito o total diz menos do que ela. */
-.laps{display:flex;flex-direction:column;gap:.4vh;margin:1vh auto 0;
-  max-width:22vw;font-size:1.2vw}
-.lap{display:flex;justify-content:space-between;gap:1.5vw;
+   a melhor realçada, porque num circuito o total diz menos do que ela. Passadas
+   cinco voltas a lista parte para uma segunda coluna em vez de continuar a
+   crescer para baixo -- dez voltas em coluna única empurravam o menu do painel
+   para fora de um ecrã de 1080. */
+.laps{display:grid;grid-auto-flow:column;grid-template-rows:repeat(5,auto);
+  gap:.4vh 1vw;justify-content:center;width:max-content;max-width:100%;
+  margin:1vh auto 0;font-size:1.2vw}
+.lap{display:flex;justify-content:space-between;gap:1.5vw;min-width:11vw;
   padding:.5vh 1vw;border-radius:8px;background:rgba(28,38,54,.6);color:#9fb2ca}
 .lap b{color:#eef3f9;font-variant-numeric:tabular-nums}
 .lap.best{background:rgba(79,191,122,.16)}

@@ -39,6 +39,10 @@ const top = () => stack[stack.length - 1];
 // nearest full screen covers. Without this the track picker would keep
 // rendering its map canvases behind the editor.
 function restack() {
+  // The screen under the player has just changed. Whatever they were holding
+  // when it did -- the throttle, most of all -- was aimed at the screen that is
+  // going away, and must not carry over as a press on the one arriving.
+  tv.guard();
   let showing = true;
   for (let i = stack.length - 1; i >= 0; i--) {
     const v = stack[i];
@@ -58,6 +62,7 @@ const app = {
     restack();
     if (v.mounted) v.mounted();
     app.paintPad();
+    keepVisible();
   },
   pop() {
     const v = stack.pop();
@@ -325,7 +330,21 @@ tv.on(a => {
   }
   if (!(t && t.drive) && (a === 'up' || a === 'down' || a === 'left' || a === 'right')) sound.tick();
   if (t && t.key) t.key(a);
+  keepVisible();
 });
+
+// A selecção tem de continuar visível num painel que rola (.panel em tv.css).
+// Num televisor nada tem foco do DOM -- o realce é uma classe, e o browser não
+// rola atrás de uma classe -- por isso quem muda a selecção é que tem de a pôr
+// à vista. Faz-se aqui uma vez, no ponto por onde todas as acções passam, em vez
+// de em cada paint() espalhado por seis ecrãs.
+const ON = '.item.on, .gcell.on, .key.on, .prow.on, .card.on';
+function keepVisible() {
+  const t = top();
+  if (!t || !t.el) return;
+  const on = t.el.querySelector(ON);
+  if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
 
 // The wrapper hands remote keys straight to the page (see MainActivity). They
 // arrive as ordinary synthetic key events, which is all TvInput needs -- the TV

@@ -149,7 +149,7 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   sério. Manda quem foi usado por último (`js/ui/pads.js`). Os botões do comando
   são também reencaminhados pela `Activity` como teclas, para que a `WebView` que
   não exponha a Gamepad API não deixe o comando sem forma de confirmar nada; a
-  ação repetida é absorvida pelo limite de 90 ms que já existia. E é por aí que
+  ação repetida é absorvida pelo guarda descrito abaixo. E é por aí que
   se conduz numa televisão a sério: os nomes que a `Activity` inventa (`Enter`
   para o A, `KeyX` para o X, `KeyB` para o B) têm de constar também das teclas
   de condução em `game/input.js`, ou o comando vira e acelera mas nunca trava.
@@ -157,7 +157,21 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   porque a meio de uma volta é o travão de mão -- e um travão de mão que também
   quer dizer "voltar" abre o menu de pausa a meio de uma curva.
 - **A interface nunca usa o foco do DOM.** Cada ecrã tem o seu próprio cursor e
-  reage a ações com nome, o que evita toda uma classe de problemas de foco.
+  reage a ações com nome, o que evita toda uma classe de problemas de foco. Tem
+  um preço: o browser não rola atrás de uma classe como rolaria atrás do foco,
+  por isso é `keepVisible()` (`js/tv/main.js`) que traz a seleção para dentro do
+  painel a cada ação — uma vez só, no ponto por onde todas passam.
+- **Um botão que já estava carregado não é uma pressão nova.** Acaba-se uma
+  volta com o acelerador a fundo e o menu de resultados aparece por baixo do
+  mesmo polegar: se essa pressão contar, o menu escolhe-se sozinho. O problema
+  não é a repetição em si, é que cada aparelho a conta de maneira diferente — o
+  Android repete `ACTION_DOWN` sem parar, há comandos que repetem como pares
+  cima/baixo, e o gamepad não tem transições nenhumas, lê-se por nível. Por isso
+  `js/tv/input.js` não confia em nenhuma delas: guarda quando cada pressão
+  *começou* (a primeira menção depois de um silêncio, ou depois de um largar
+  com mais de 60 ms), e `restack()` marca o instante em que o ecrã mudou. Uma
+  ação cuja pressão começou antes do ecrã atual não dispara. As direções estão
+  de fora — manter uma carregada para percorrer uma lista é para isso que serve.
 - **Loops e corkscrews são uma volta de uma hélice.** O ligeiro desvio lateral do
   loop é essencial: uma curva plana que dá 360° e volta ao nível tem de se
   intersectar a si própria, e o carro atravessaria a rampa de saída.
@@ -219,6 +233,13 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   largar o acelerador dava uma curva melhor do que travar. Agora a travagem
   usa `BRAKE_SHARE`, bastante mais baixo; a subviragem com o pé no
   acelerador fica exactamente como estava.
+- **Um salto não é um castigo.** Ao aterrar, a parte vertical do voo desaparece
+  sozinha — projeta-se a velocidade no plano da estrada, que é o mesmo que dizer
+  que foi para o chão. O que sobra é o arrastar de aterrar mal, e esse era
+  enorme: um salto normal devolvia o carro um terço mais lento do que descolou,
+  o que fazia de cada rampa de cada pista uma penalização em vez de um número do
+  programa. Hoje custa menos de 10%, e uma chegada violenta à saída de um loop
+  fica pelos 20% do topo (`land()`, `js/game/car.js`).
 - **Parar não é limitado pela figura de curva.** `aLatMax` é o que uma ponta
   do carro aguenta de lado; travar são as quatro rodas a puxar para o mesmo
   sítio, num nariz que acabou de mergulhar sobre elas, com o motor a ajudar.

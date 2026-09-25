@@ -348,7 +348,13 @@ export class Car {
     this.u = lat;
     this.v = Math.hypot(along, side) * (along < 0 ? -1 : 1);
     this.psi = clamp(Math.atan2(side, Math.abs(along) < 0.01 ? 0.01 : along), -1.1, 1.1);
-    this.v *= 1 - clamp(impact / 34, 0, 0.42);
+    // What the suspension does not swallow. The vertical part of the flight is
+    // already gone -- it went into the ground, which is what the projection
+    // above does -- so this is only the scrub of landing badly, and it used to
+    // be enormous: a normal jump came down a third slower than it took off,
+    // which made every ramp on every track a punishment rather than a stunt.
+    // A heavy arrival off a loop still costs real speed, at the cap.
+    this.v *= 1 - clamp(impact / 140, 0, 0.2);
     this.vu = 0;
     this.landings++;
     this.landForce = impact;
