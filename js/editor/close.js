@@ -11,7 +11,7 @@
 // candidate that actually closes is returned. That way nothing here has to be
 // exactly right -- the banking, the ramp integrals, the way a piece rounds its
 // own length -- it only has to be close enough for the search to find.
-import { walkTrack, closes } from '../world/track.js';
+import { walkTrack, closes, ROAD_WIDE } from '../world/track.js';
 import { quat } from '../core/math.js';
 
 const TAU = Math.PI * 2;
@@ -19,6 +19,9 @@ const DEG = 180 / Math.PI;
 const turn = a => ((a % TAU) + TAU) % TAU;      // into [0, 2pi)
 
 const RADII = [70, 90, 55, 110, 140, 45, 180, 34];
+// Lengths of straight run off the end of the track before the join turns.
+const LEADS = [0, 90, 220, 420];
+const MAX_RUN = 12000;       // the longest straight any join may ask for
 const STEEP = 14;            // degrees of a height-correcting climb
 const LONG = 80;             // and the longest one piece is allowed to be
 const BANK = 7;
@@ -46,7 +49,10 @@ function endPose(pieces) {
 // far enough apart to fit between them -- and which of the two crossing lines
 // is the right one is a question of signs that is cheaper to answer by trying
 // both than by getting right.
-function* joins(p, R) {
+function* joins(p0, R, lead) {
+  // The straight moves the starting pose along its own heading; everything
+  // below then solves from there, exactly as it did from the end of the track.
+  const p = { x: p0.x + lead * Math.sin(p0.psi), z: p0.z + lead * Math.cos(p0.psi), psi: p0.psi };
   for (const d0 of ['r', 'l']) {
     for (const d1 of ['r', 'l']) {
       const s0 = d0 === 'r' ? 1 : -1, s1 = d1 === 'r' ? 1 : -1;
@@ -68,7 +74,7 @@ function* joins(p, R) {
         const a1 = d0 === 'r' ? turn(psiT - p.psi) : turn(p.psi - psiT);
         const a2 = d1 === 'r' ? turn(-psiT) : turn(psiT);
         const u = [a1 * DEG, run, a2 * DEG];
-        yield { u, d0, d1, R, pieces: shape(u, d0, d1, R) };
+        yield { u, d0, d1, R, lead, pieces: shape(u, d0, d1, R, lead) };
       }
     }
   }
@@ -136,8 +142,9 @@ function miss(pieces) {
 }
 
 // The join written out from its three numbers, so the search can vary them.
-const shape = (u, d0, d1, R) => {
+const shape = (u, d0, d1, R, lead = 0) => {
   const out = [];
+  if (lead > 1) out.push({ t: 's', len: lead });
   if (u[0] > 0.5) out.push({ t: 'c', r: R, a: u[0], dir: d0, bank: BANK });
   if (u[1] > 1) out.push({ t: 's', len: u[1] });
   if (u[2] > 0.5) out.push({ t: 'c', r: R, a: u[2], dir: d1, bank: BANK });
@@ -147,16 +154,16 @@ const shape = (u, d0, d1, R) => {
 // Newton on three numbers -- how far round the first curve goes, how long the
 // straight is, how far round the last curve goes -- against the three things
 // that have to come out right: two of position and one of heading.
-function refine(base, u0, d0, d1, R) {
+function refine(base, u0, d0, d1, R, lead) {
   let u = [...u0];
   for (let step = 0; step < 7; step++) {
-    const f0 = miss([...base, ...shape(u, d0, d1, R)]);
-    if (f0.size < 0.25) return [...base, ...shape(u, d0, d1, R)];
+    const f0 = miss([...base, ...shape(u, d0, d1, R, lead)]);
+    if (f0.size < 0.25) return [...base, ...shape(u, d0, d1, R, lead)];
     const h = [0.4, 3, 0.4];                    // degrees, metres, degrees
     const J = [];
     for (let k = 0; k < 3; k++) {
       const up = [...u]; up[k] += h[k];
-      const fk = miss([...base, ...shape(up, d0, d1, R)]);
+      const fk = miss([...base, ...shape(up, d0, d1, R, lead)]);
       J.push([(fk.r[0] - f0.r[0]) / h[k], (fk.r[1] - f0.r[1]) / h[k], (fk.r[2] - f0.r[2]) / h[k]]);
     }
     // Solve J^T d = -r by Cramer. J is stored by column, so det works out the
@@ -171,54 +178,103 @@ function refine(base, u0, d0, d1, R) {
     const b = [-f0.r[0], -f0.r[1], -f0.r[2]];
     const sub = k => m.map((row, i) => row.map((v, j) => (j === k ? b[i] : v)));
     const d = [det3(sub(0)) / D, det3(sub(1)) / D, det3(sub(2)) / D];
-    u = [turn((u[0] + d[0]) * Math.PI / 180) * DEG, Math.max(0, u[1] + d[1]),
+    // Newton is not guaranteed to walk towards the answer, and the straight is
+    // the one number here with no natural ceiling: left alone, a bad step asks
+    // for a road millions of metres long and the track builder sets about
+    // laying every metre of it. The angles wrap by themselves.
+    if (!d.every(Number.isFinite)) break;
+    u = [turn((u[0] + d[0]) * Math.PI / 180) * DEG,
+         Math.min(MAX_RUN, Math.max(0, u[1] + d[1])),
          turn((u[2] + d[2]) * Math.PI / 180) * DEG];
   }
-  const out = [...base, ...shape(u, d0, d1, R)];
+  const out = [...base, ...shape(u, d0, d1, R, lead)];
   return miss(out).size < 0.5 ? out : null;
 }
 
-// Where the join would lie on top of road that is already there.
+// How much road a join puts on top of road that is already there.
 //
-// Two ribbons of tarmac at the same height in the same place is not a junction,
-// it is a mess: they fight over the same ground and neither reads as a road.
-// Passing over or under is another matter -- the world builds pillars for that
-// already -- so a clash is being close in plan *and* close in height.
+// The width that counts is the real one -- rails and all, not just the tarmac
+// -- and a genuine flyover is left alone, which is what ROAD_WIDE and the
+// height test are for. Only what the join *adds* is counted: a track that
+// already crossed itself before being closed is not the join's doing.
 //
-// Frames are a metre apart, so comparing a long track against a long join pair
-// by pair is millions of tests. They go into a coarse grid first, and only the
-// nine squares around each point of the join are looked at.
-const CLASH_NEAR = 11;       // metres between centrelines that count as on top
-const CLASH_RISE = 4.5;      // metres of height that make it a flyover instead
-const CELL = 12;
+// Hundreds of candidates get measured, so the track as it was goes into a grid
+// once and each candidate only tests its own new frames against it. Testing
+// the whole thing every time, as the shared crossings() does, is the same
+// answer at fifty times the cost.
+const CLASH_RISE = 5;
+const CELL = 18;
 const KEEP = 26;             // the two ends, where the join is meant to meet
 
-function clashes(frames, from) {
-  const key = (a, b) => a + ',' + b;
-  const grid = new Map();
-  const endS = frames[frames.length - 1].s;
-  for (let i = 0; i < from; i++) {
-    const f = frames[i];
-    if (f.s < KEEP) continue;                 // the start, which it must reach
-    const k = key(Math.floor(f.pos[0] / CELL), Math.floor(f.pos[2] / CELL));
-    if (!grid.has(k)) grid.set(k, []);
-    grid.get(k).push(f);
+const cellKey = (p) => Math.floor(p[0] / CELL) + ',' + Math.floor(p[2] / CELL);
+
+function gridOf(frames, endS) {
+  const g = new Map();
+  for (const f of frames) {
+    if (f.s < KEEP || f.s > endS - KEEP) continue;
+    const k = cellKey(f.pos);
+    if (!g.has(k)) g.set(k, []);
+    g.get(k).push(f);
   }
-  let n = 0;
-  for (let i = from; i < frames.length; i++) {
-    const f = frames[i];
-    if (f.s > endS - KEEP) continue;          // where it comes home again
+  return g;
+}
+
+const onTop = (a, b) =>
+  Math.abs(a.pos[1] - b.pos[1]) <= CLASH_RISE
+  && Math.hypot(a.pos[0] - b.pos[0], a.pos[2] - b.pos[2]) < ROAD_WIDE;
+
+// The join's own frames, put where the join will actually be.
+//
+// Walking base-plus-join to measure a candidate means re-walking thousands of
+// frames of a track that has not changed, hundreds of times over. Walking only
+// the join and then turning it to face the way the track ends is the same
+// answer for a fraction of the work -- and this is only ever used to ask what
+// the join lies on top of, never to decide whether it closes.
+function placedJoin(joinPieces, p) {
+  const w = walkTrack(joinPieces);
+  const cos = Math.cos(p.psi), sin = Math.sin(p.psi);
+  return w.frames.map(f => ({
+    s: f.s,
+    pos: [p.x + f.pos[0] * cos + f.pos[2] * sin,
+          p.y + f.pos[1],
+          p.z - f.pos[0] * sin + f.pos[2] * cos],
+  }));
+}
+
+// Metres of the join lying on the old road, or on itself.
+function joinClash(grid, join, totalLen) {
+  const last = join.length ? join[join.length - 1].s : 0;
+  // The join against itself goes through a grid of its own, filled as the scan
+  // advances and always kept a good stretch behind: a frame is only ever asked
+  // about road it left well before, never about its own neighbours. Walking a
+  // list backwards instead would be quadratic, and on a join of a few thousand
+  // frames, times a few hundred candidates, that is the difference between an
+  // editor action and a hang.
+  const BEHIND = 70;
+  const self = new Map();
+  const add = f => {
+    const k = cellKey(f.pos);
+    if (!self.has(k)) self.set(k, []);
+    self.get(k).push(f);
+  };
+  const near = (g, f) => {
     const cx = Math.floor(f.pos[0] / CELL), cz = Math.floor(f.pos[2] / CELL);
-    let hit = false;
-    for (let dx = -1; dx <= 1 && !hit; dx++) {
-      for (let dz = -1; dz <= 1 && !hit; dz++) {
-        for (const g of grid.get(key(cx + dx, cz + dz)) || []) {
-          if (Math.abs(g.pos[1] - f.pos[1]) > CLASH_RISE) continue;
-          if (Math.hypot(g.pos[0] - f.pos[0], g.pos[2] - f.pos[2]) < CLASH_NEAR) { hit = true; break; }
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        for (const q of g.get((cx + dx) + ',' + (cz + dz)) || []) {
+          if (onTop(q, f)) return true;
         }
       }
     }
-    if (hit) n++;
+    return false;
+  };
+
+  let n = 0, trail = 0;
+  for (let i = 0; i < join.length; i++) {
+    const f = join[i];
+    if (f.s > last - KEEP) continue;      // the stretch that meets the start
+    while (trail < join.length && join[trail].s <= f.s - BEHIND) add(join[trail++]);
+    if (near(grid, f) || near(self, f)) n++;
   }
   return n;
 }
@@ -243,30 +299,32 @@ export function closeCircuit(pieces) {
   if (!pieces || !pieces.length) return null;
   const base = levelOut(pieces);
   const p = endPose(base);
+  const baseWalk = walkTrack(base);
+  const baseLen = baseWalk.length;
+  // The track as it was, gridded once. Every candidate below is measured
+  // against this rather than re-measuring the whole track each time.
+  const grid = gridOf(baseWalk.frames, baseLen);
 
-  const baseLen = walkTrack(base).length;
-  const startOfJoin = w => {
-    const i = w.frames.findIndex(f => f.s >= baseLen - 0.5);
-    return i < 0 ? w.frames.length : i;
-  };
-
-  // Every shape the arithmetic can propose, each walked once and ranked by
-  // whether it lands on the existing road and then by how close it already is.
-  // Ranking on the rough shape rather than the refined one is deliberate:
-  // refining is expensive and the refinement moves a join by metres, not by
-  // enough to take it off a piece of road it was lying along.
+  // Every shape the arithmetic can propose, over a spread of radii and of
+  // lead-in straights. The straight matters more than it looks: it carries the
+  // end of the track away before the first curve, which is often the only way
+  // out of a corner the track has painted itself into.
   const tries = [];
   for (const R of RADII) {
-    for (const j of joins(p, R)) {
-      const w = walkTrack([...base, ...j.pieces]);
-      tries.push({ ...j, bad: clashes(w.frames, startOfJoin(w)), off: miss([...base, ...j.pieces]).size });
+    for (const lead of LEADS) {
+      for (const j of joins(p, R, lead)) {
+        const placed = placedJoin(j.pieces, p);
+        const len = baseLen + (placed.length ? placed[placed.length - 1].s : 0);
+        tries.push({ ...j, bad: joinClash(grid, placed, len), len });
+      }
     }
   }
-  tries.sort((a, b) => (a.bad - b.bad) || (a.off - b.off));
+  // Keeping off the road already laid comes first, and only then keeping short.
+  tries.sort((a, b) => (a.bad - b.bad) || (a.len - b.len));
 
   let best = null;
-  for (const j of tries.slice(0, 6)) {
-    const got = refine(base, j.u, j.d0, j.d1, j.R);
+  for (const j of tries.slice(0, 10)) {
+    const got = refine(base, j.u, j.d0, j.d1, j.R, j.lead);
     if (!got) continue;
     if (!closes(walkTrack(got).frames)) continue;
     // Round the generated pieces to numbers a person can read and adjust. The
@@ -277,12 +335,13 @@ export function closeCircuit(pieces) {
       if (closes(walkTrack(neat).frames)) { kept = neat; break; }
     }
     const wk = walkTrack(kept);
-    const bad = clashes(wk.frames, startOfJoin(wk));
+    const bad = joinClash(grid, placedJoin(kept.slice(base.length), p), wk.length);
     // A join that keeps off the road already laid beats a shorter one that
-    // does not, however much longer it has to go round to manage it.
+    // does not, however much further round it has to go to manage it.
     if (!best || bad < best.bad || (bad === best.bad && wk.length < best.length)) {
       best = { pieces: kept, length: wk.length, bad };
     }
+    if (best.bad === 0 && j.bad === 0) break;   // nothing better is available
   }
   return best ? best.pieces : null;
 }

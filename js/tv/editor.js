@@ -13,7 +13,7 @@
 // Modes are modals stacked on top: adding, adjusting, naming and the menu each
 // take over the buttons completely, so a button never means two things at once.
 import { PIECE_TYPES, defaults, describe } from '../world/pieces.js';
-import { walkTrack, buildTrack } from '../world/track.js';
+import { walkTrack, buildTrack, crossings, DS } from '../world/track.js';
 import { testDrive } from '../editor/autopilot.js';
 import { closeCircuit } from '../editor/close.js';
 import { trackDefFrom, saveCustom, loadCustom, setTrackShared } from '../world/customtracks.js';
@@ -156,6 +156,38 @@ export function editorScreen(app, def) {
     refresh();
   };
 
+  // A distance along the track is useless on its own -- "sai da pista aos
+  // 2354 m" leaves you hunting through a strip of thirty pieces for the one it
+  // means. This turns the metres into the piece that occupies them, puts the
+  // cursor on it, and lets the map and the strip do the pointing.
+  const pieceAt = (metres) => {
+    if (!walk) return -1;
+    const f = walk.frames[Math.max(0, Math.min(walk.frames.length - 1, Math.round(metres / DS)))];
+    return f && f.pi != null ? f.pi : -1;
+  };
+
+  const goTo = (metres) => {
+    const at = pieceAt(metres);
+    if (at < 0 || at >= pieces.length) return null;
+    cursor = at;
+    paint();
+    return describe(pieces[at]);
+  };
+
+  // Two pieces of road at the same height in the same place read as neither.
+  // Worth saying out loud, and worth pointing at: the first one found gets the
+  // cursor, so it can be raised, moved or taken out.
+  const reportCrossings = (prefix, kind = 'bad') => {
+    const spots = walk ? crossings(walk) : [];
+    if (!spots.length) return false;
+    const at = Math.round(spots[0].from);
+    const on = goTo(at);
+    message(`${prefix} A pista passa por cima de si própria aos ${at} m`
+      + `${spots.length > 1 ? ` (e em mais ${spots.length - 1} sítio${spots.length > 2 ? 's' : ''})` : ''}.`
+      + `${on ? ` Cursor posto aí: ${on}.` : ''}`, kind);
+    return true;
+  };
+
   const swap = d => {
     const to = cursor + d;
     if (cursor < 0 || to < 0 || to >= pieces.length) return;
@@ -282,13 +314,18 @@ export function editorScreen(app, def) {
     message('A testar se é conduzível...');
     const run = testDrive(buildTrack({ pieces }), { phys: car && car.phys });
     if (run.ok) {
-      message(`Conduzível com o ${car.name}: ${run.seconds.toFixed(1)} s, `
-        + `máxima ${Math.round(run.topSpeed)} km/h.`, 'good');
+      const ok = `Conduzível com o ${car.name}: ${run.seconds.toFixed(1)} s, `
+        + `máxima ${Math.round(run.topSpeed)} km/h.`;
+      // The autopilot only cares whether the car gets round; a track can be
+      // perfectly drivable and still lie on top of itself.
+      if (!reportCrossings(ok, '')) message(ok, 'good');
     } else {
       const spot = run.failures.length ? run.failures[run.failures.length - 1] : null;
+      const at = spot ? goTo(spot.s) : goTo(run.furthest);
+      const onde = at ? ` Cursor posto aí: ${at}.` : '';
       message(spot
-        ? `Falha com o ${car.name}: ${spot.reason} aos ${spot.s} m. Suaviza essa zona.`
-        : `Não terminei — parou aos ${run.furthest} m.`, 'bad');
+        ? `Falha com o ${car.name}: ${spot.reason} aos ${spot.s} m.${onde} Suaviza essa zona.`
+        : `Não terminei — parou aos ${run.furthest} m.${onde}`, 'bad');
     }
     return run;
   };
@@ -316,7 +353,9 @@ export function editorScreen(app, def) {
       dirty = true;
       refresh();
       const added = Math.round((walk ? walk.length : 0) - before);
-      message(`Circuito fechado: +${added} m e ${DEFAULT_LAPS} voltas por corrida.`, 'good');
+      if (!reportCrossings(`Circuito fechado: +${added} m, mas atenção:`)) {
+        message(`Circuito fechado: +${added} m e ${DEFAULT_LAPS} voltas por corrida.`, 'good');
+      }
     }, 30);
   };
 

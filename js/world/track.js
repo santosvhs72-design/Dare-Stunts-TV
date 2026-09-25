@@ -1,6 +1,7 @@
 import { quat, v3, clamp } from '../core/math.js';
 import { MeshData, hex, shade } from '../core/mesh.js';
 import { expand } from './pieces.js';
+import { GROUND_Y } from './scenery.js';
 
 export const DS = 1.0;              // metres between frames
 export const ROAD_HALF = 5.6;       // full-grip half-width
@@ -93,6 +94,54 @@ function finalise(frames) {
   return frames;
 }
 
+// Light inside a bore, worked out once and baked into the colours.
+//
+// The world never moves and the sun never sets, so light that does not change
+// does not have to be computed sixty times a second: it can be mixed into the
+// vertex colours while the track is being built and cost nothing at all
+// afterwards. That is the whole trick here, and it is what makes real tunnel
+// lighting affordable on a television that could not carry a single extra
+// per-pixel light.
+//
+// Three things are baked. Daylight gives out over the first stretch of bore
+// rather than at the mouth, or driving in is a jump cut. Deep inside, what is
+// left is the strip lights, which are warm and much weaker than the sun. And
+// the strips are spaced, so the light between them dips -- a ripple that is
+// what actually reads as lamps rather than as a dimmer switch.
+const TUNNEL_DARK = 0.44;     // how much daylight survives deep in a bore
+const TUNNEL_FADE = 22;       // metres over which it gives out
+const TUNNEL_WARM = [1.0, 0.9, 0.72];   // the colour a sodium strip lends
+const LAMP_SPACING = 3 * MESH_STEP;     // frames between strip lights
+const LAMP_RIPPLE = 0.12;
+
+// Distance from each frame to the nearest daylight, in metres. Two sweeps: one
+// forward, one back, each carrying the best answer it has seen.
+function bright(frames) {
+  const n = frames.length;
+  const d = new Array(n);
+  let run = Infinity;
+  for (let i = 0; i < n; i++) { run = frames[i].tunnel ? run + DS : 0; d[i] = run; }
+  run = Infinity;
+  for (let i = n - 1; i >= 0; i--) { run = frames[i].tunnel ? run + DS : 0; d[i] = Math.min(d[i], run); }
+  return d.map((metres, i) => {
+    if (!frames[i].tunnel) return 1;
+    const day = Math.min(1, metres / TUNNEL_FADE);              // 0 at the mouth
+    const lamp = 1 + LAMP_RIPPLE * Math.cos(2 * Math.PI * i / LAMP_SPACING);
+    return (1 - day) + day * TUNNEL_DARK * lamp;
+  });
+}
+
+// Darkened, and tinted towards the lamps as the daylight goes.
+function lit(col, f) {
+  if (f >= 0.999) return col;
+  const w = Math.min(1, (1 - f) / (1 - TUNNEL_DARK * (1 + LAMP_RIPPLE)));
+  return [
+    Math.min(1, col[0] * f * (1 + w * (TUNNEL_WARM[0] - 1))),
+    Math.min(1, col[1] * f * (1 + w * (TUNNEL_WARM[1] - 1))),
+    Math.min(1, col[2] * f * (1 + w * (TUNNEL_WARM[2] - 1))),
+  ];
+}
+
 // Cross-section point: lateral offset u, height h above the surface.
 const P = (f, u, h) => [
   f.pos[0] + f.right[0] * u + f.up[0] * h,
@@ -111,23 +160,27 @@ function buildRoad(frames) {
   let md = new MeshData();
   let segInChunk = 0;
   let curbToggle = 0;
+  // How much light reaches each frame. Outside a bore this is all ones and
+  // lit() hands every colour straight back, so an open track is untouched.
+  const light = bright(frames);
 
   for (let i = 0; i + MESH_STEP < frames.length; i += MESH_STEP) {
     const a = frames[i], b = frames[i + MESH_STEP];
     if (!a.gap) {
-      const tone = Math.floor(i / 16) % 2 ? COL.asphaltB : COL.asphaltA;
+      const L = light[i];
+      const tone = lit(Math.floor(i / 16) % 2 ? COL.asphaltB : COL.asphaltA, L);
 
       strip(md, a, b, -ROAD_HALF, 0, -0.22, 0, tone);
       strip(md, a, b, 0.22, 0, ROAD_HALF, 0, tone);
       // Dashed centre line.
       const dash = Math.floor(i / (MESH_STEP * 4)) % 2 === 0;
-      strip(md, a, b, -0.22, 0, 0.22, 0, dash ? COL.line : tone);
+      strip(md, a, b, -0.22, 0, 0.22, 0, dash ? lit(COL.line, L) : tone);
 
-      const curb = curbToggle % 2 ? COL.curbA : COL.curbB;
+      const curb = lit(curbToggle % 2 ? COL.curbA : COL.curbB, L);
       // Alternating shade reads as structural ribs, which is what makes a loop
       // legible as a concrete tube rather than a flat mass.
-      const rib = shade(COL.apron, curbToggle % 4 < 2 ? 1 : 0.86);
-      const rail = shade(COL.rail, curbToggle % 6 < 3 ? 1 : 0.9);
+      const rib = lit(shade(COL.apron, curbToggle % 4 < 2 ? 1 : 0.86), L);
+      const rail = lit(shade(COL.rail, curbToggle % 6 < 3 ? 1 : 0.9), L);
       for (const sgn of [-1, 1]) {
         const inner = sgn * ROAD_HALF, outer = sgn * CURB_OUT, wall = sgn * WALL_OUT;
         strip(md, a, b, inner, CURB_H, outer, CURB_H, curb, sgn < 0);
@@ -142,7 +195,7 @@ function buildRoad(frames) {
       }
       // Banded underside: this is the outer skin of a loop, so it needs rhythm.
       strip(md, a, b, -WALL_OUT, -APRON, WALL_OUT, -APRON,
-            shade(COL.apron, curbToggle % 4 < 2 ? 0.74 : 0.6), true);
+            lit(shade(COL.apron, curbToggle % 4 < 2 ? 0.74 : 0.6), L), true);
       curbToggle++;
     }
 
@@ -251,7 +304,10 @@ function buildTunnels(frames) {
       const lift = (h0 + h1) / 2 / BORE_CROWN;
       const side = (u0 + u1) / 2 / BORE_HALF;
       const tone = 0.52 + 0.4 * lift + 0.14 * side;
-      strip(md, a, b, u0, h0, u1, h1, shade(base, tone));
+      // The same ripple the road gets, so a strip lights its own stretch of
+      // wall and the bore stops reading as one long grey pipe.
+      const ripple = 1 + LAMP_RIPPLE * 1.6 * Math.cos(2 * Math.PI * i / LAMP_SPACING);
+      strip(md, a, b, u0, h0, u1, h1, shade(base, tone * ripple));
     }
 
     // Recessed strip lights along the crown.
@@ -268,6 +324,51 @@ function buildTunnels(frames) {
   return { bore: chunks, portals: portals.vertexCount ? [portals] : [] };
 }
 
+// The shadow the road casts on the ground.
+//
+// Nothing in this world sits on anything: a viaduct, a hill, the top of a loop
+// all float, because a flat-shaded scene with no shadows gives the eye nothing
+// to put them on. A real shadow map is out of the question on a television --
+// a second pass over the whole scene, every frame, and we have already learnt
+// what that costs here. But the sun never moves and neither does the road, so
+// the shadow can be worked out once and laid down as a strip of dark grass.
+// It is a few thousand triangles that never change, and it costs nothing at
+// all per frame.
+//
+// Each point of the road slides down the sun's own direction until it reaches
+// the ground, which is what makes the shadow lean away as the road climbs --
+// the single cue that says how high up something is.
+//
+// It is drawn wider than the road on purpose. The sun here stands 55 degrees
+// up, which buys only two thirds of a metre of lean for every metre of height,
+// and the carriageway is thirteen metres across: a shadow the width of the
+// road would spend the whole track hidden underneath it and only ever appear
+// beside a viaduct. The extra width shows either side as a band of darker
+// grass -- the shading a thing picks up from being near the ground -- which is
+// what makes the road look laid on the world rather than hovering over it.
+const SUN = v3.norm([0.42, 0.82, 0.38]);      // Renderer.light
+const SHADOW_LIFT = 0.12;                     // clear of the grass, and of its depth buffer
+const SHADOW_WIDE = WALL_OUT + 2.6;
+const SHADOW_COL = hex('#384a37');
+
+function buildShadow(frames) {
+  const md = new MeshData();
+  const onGround = (f, u) => {
+    const p = P(f, u, 0);
+    const drop = (p[1] - GROUND_Y) / SUN[1];
+    return [p[0] - SUN[0] * drop, GROUND_Y + SHADOW_LIFT, p[2] - SUN[2] * drop];
+  };
+  for (let i = 0; i + MESH_STEP < frames.length; i += MESH_STEP) {
+    const a = frames[i], b = frames[i + MESH_STEP];
+    // No sun inside a bore, nothing to cast over a gap, and a wall standing on
+    // its edge casts a sliver nobody would read as a shadow.
+    if (a.gap || a.tunnel || a.up[1] < 0.3) continue;
+    md.quad(onGround(a, -SHADOW_WIDE), onGround(b, -SHADOW_WIDE),
+            onGround(b, SHADOW_WIDE), onGround(a, SHADOW_WIDE), SHADOW_COL, [0, 1, 0]);
+  }
+  return md.vertexCount ? [md] : [];
+}
+
 function buildSupports(frames) {
   const md = new MeshData();
   for (let i = 0; i < frames.length; i += 14) {
@@ -276,9 +377,28 @@ function buildSupports(frames) {
     const base = P(f, 0, -APRON);
     const h = base[1];
     if (h < 3.2) continue;
+    // A pillar goes straight down to the ground, so where the road it is
+    // holding up passes over another piece of road, that pillar would come
+    // down through it. Nothing holding the viaduct up there looks better than
+    // a column through the carriageway.
+    if (throughRoad(frames, i, base)) continue;
     md.box(base[0], h / 2, base[2], 0.8, h / 2, 0.8, COL.pillar);
   }
   return md.vertexCount ? [md] : [];
+}
+
+// Is there road below this pillar's foot, belonging to some other part of the
+// track? Only the stretch under it matters, so the search is a plain scan with
+// an early skip on arc length -- pillars are rare enough for that to be cheap.
+function throughRoad(frames, at, base) {
+  const me = frames[at];
+  for (let j = 0; j < frames.length; j += 2) {
+    const g = frames[j];
+    if (Math.abs(g.s - me.s) < 40) continue;
+    if (g.pos[1] > base[1] - 1.5) continue;          // not below the deck
+    if (Math.hypot(g.pos[0] - base[0], g.pos[2] - base[2]) < WALL_OUT + 1) return true;
+  }
+  return false;
 }
 
 function gate(md, f, kind) {
@@ -356,6 +476,59 @@ const CLOSE_GAP = 0.6;              // metres between the two ends
 const CLOSE_RISE = 0.4;             // metres of step in height
 const CLOSE_TURN = 2 * Math.PI / 180;
 
+// The width the road really takes up on the ground: the rails, not the tarmac.
+// Two centrelines closer together than this have their barriers inside each
+// other, which is what a crossing looks like when it goes wrong.
+export const ROAD_WIDE = WALL_OUT * 2;
+
+// Where the track lies on top of itself.
+//
+// Not every meeting is a fault -- a loop passes over its own entry and a
+// corkscrew over its own start, and both are the point of the piece. What is a
+// fault is two pieces of road at the same height in the same place: they fight
+// over the same ground and neither reads as a road. So a clash is close in
+// plan *and* close in height, and far enough apart along the track that it is
+// two different pieces of road rather than the same one.
+//
+// Frames are a metre apart, so a pairwise search is millions of tests on a long
+// track. They go into a coarse grid first and only the nine squares around each
+// frame are looked at.
+export function crossings(walk, { near = ROAD_WIDE, rise = 5, apart = 70 } = {}) {
+  const F = walk.frames, len = walk.length, closed = walk.closed;
+  const CELL = Math.ceil(near) + 4;
+  const key = (a, b) => a + ',' + b;
+  const grid = new Map();
+  for (let i = 0; i < F.length; i++) {
+    const k = key(Math.floor(F[i].pos[0] / CELL), Math.floor(F[i].pos[2] / CELL));
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(i);
+  }
+  const spots = [];
+  let run = null;
+  for (let i = 0; i < F.length; i++) {
+    const f = F[i];
+    const cx = Math.floor(f.pos[0] / CELL), cz = Math.floor(f.pos[2] / CELL);
+    let hit = -1;
+    for (let dx = -1; dx <= 1 && hit < 0; dx++) {
+      for (let dz = -1; dz <= 1 && hit < 0; dz++) {
+        for (const j of grid.get(key(cx + dx, cz + dz)) || []) {
+          let ds = Math.abs(F[j].s - f.s);
+          if (closed) ds = Math.min(ds, len - ds);
+          if (ds < apart) continue;
+          if (Math.abs(F[j].pos[1] - f.pos[1]) > rise) continue;
+          if (Math.hypot(F[j].pos[0] - f.pos[0], F[j].pos[2] - f.pos[2]) < near) { hit = j; break; }
+        }
+      }
+    }
+    if (hit < 0) { run = null; continue; }
+    // A crossing is a stretch, not a point: neighbouring frames that clash are
+    // the same fault seen again and belong in one entry.
+    if (run && i - run.i <= 3) { run.i = i; run.to = f.s; run.metres++; }
+    else { run = { from: f.s, to: f.s, i, metres: 1 }; spots.push(run); }
+  }
+  return spots;
+}
+
 export function closes(frames) {
   const a = frames[0], b = frames[frames.length - 1];
   if (Math.hypot(b.pos[0] - a.pos[0], b.pos[2] - a.pos[2]) > CLOSE_GAP) return false;
@@ -375,7 +548,8 @@ export function buildTrack(def) {
   return {
     ...base,
     def,
-    roadMeshes: [...buildRoad(frames), ...buildSupports(frames), ...tunnels.portals],
+    roadMeshes: [...buildShadow(frames), ...buildRoad(frames),
+                 ...buildSupports(frames), ...tunnels.portals],
     tunnelMeshes: tunnels.bore,
     gateMeshes: buildGates(frames, base.rawCheckpoints, length, base.closed),
 

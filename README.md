@@ -52,6 +52,11 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   depende de quantas voltas foram escolhidas e todos os tempos do quadro
   continuam comparáveis entre si -- e o fantasma guardado é o dessa volta,
   repetido a cada volta que se dá.
+- **Luz nos túneis**: um túnel deixa de ser estrada à luz do dia com um tecto
+  por cima. A luz do dia esvai-se ao longo dos primeiros metros de bocado, o
+  que sobra é a luz quente das lâmpadas da abóbada, e entre lâmpada e lâmpada
+  a luz baixa. Não custa um ciclo a mais: o mundo não se mexe e o sol não se
+  põe, por isso tudo isto vai cozido nas cores quando a pista é construída.
 - **Aviso de curva**: duas setas por cima do velocímetro, como os piscas de um
   automóvel a sério, acendem para o lado de uma curva que a velocidade actual
   já não permite fazer — quanto mais tarde, mais forte.
@@ -255,6 +260,32 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   quilómetros isso são metros. Em vez de modelar essa diferença, mede-se --
   cada candidato é andado com o construtor a sério e afinado por Newton
   contra o erro medido, e só volta um que feche de facto.
+
+- **A luz que não muda não se calcula sessenta vezes por segundo.** É o
+  princípio por trás da luz dos túneis e da sombra da pista no chão
+  (`world/track.js`): o mundo é estático e a iluminação é por vértice, por
+  isso o que não varia pode ser misturado nas cores dos vértices enquanto a
+  pista se constrói, e a partir daí não custa nada. É o que a torna possível
+  numa televisão que não aguentou uma única luz por pixel a mais.
+- **A sombra é desenhada mais larga do que a estrada, de propósito.** O sol
+  está a 55° de altura, o que dá dois terços de metro de inclinação por cada
+  metro de altura, e a faixa de rodagem tem treze metros de largura: uma
+  sombra da largura da estrada passaria a pista inteira escondida debaixo dela
+  e só apareceria ao lado de um viaduto. A largura a mais aparece dos dois
+  lados como relva mais escura -- o sombreado que uma coisa apanha por estar
+  perto do chão -- e é isso que faz a estrada parecer pousada no mundo.
+- **Os cruzamentos são medidos com a largura verdadeira da estrada.** Rails
+  incluídos, treze metros e meio, e não os onze que antes se usavam -- entre
+  um número e o outro cabem sobreposições que ninguém quer ver. Passar por
+  cima ou por baixo continua a ser legítimo; o que conta como choque é estar
+  perto em planta *e* perto em altura (`crossings()` em `world/track.js`, usado
+  tanto pelo fecho de circuitos como pelo aviso no construtor). E um pilar que
+  fosse descer através de outra estrada deixa de ser construído: não ter nada a
+  segurar o viaduto ali fica melhor do que uma coluna no meio da faixa.
+- **`world/track.js` e `world/scenery.js` importam-se um ao outro.** O ciclo é
+  seguro porque nenhum lê o valor do outro enquanto o módulo está a ser
+  avaliado -- `GROUND_Y` só é lido dentro de `buildShadow()`, muito depois --
+  mas é bom saber que lá está antes de mover constantes entre os dois.
 
 O ghost guarda a volta em coordenadas de pista (distância, desvio lateral,
 altura e rumo relativos à faixa), não do mundo. Ocupa pouco, interpola sem
