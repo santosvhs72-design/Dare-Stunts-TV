@@ -10,8 +10,8 @@ android {
         applicationId = "com.darestunts.tv"
         minSdk = 24            // androidx.webkit 1.17.0's floor
         targetSdk = 37
-        versionCode = 21
-        versionName = "3.17-tv"
+        versionCode = 22
+        versionName = "3.18-tv"
     }
 
     buildTypes {

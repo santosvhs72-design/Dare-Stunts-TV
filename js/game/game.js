@@ -504,7 +504,11 @@ export class Game {
 
     const speed = car.speedKmh;
     const topKmh = this.car0.phys.vmax * 3.6;
-    const { gear, rpm } = gearFor(speed, topKmh);
+    // The car's own gear, not one worked out again from the speed: the engine
+    // note, the rev counter and the push in the back have to be the same
+    // gearbox, or the shift you hear lands somewhere other than the one you
+    // feel (see drive() in game/car.js).
+    const { gear, rpm } = gearFor(speed, topKmh, car.gear);
     // Only worth a call while actually racing: it would be noise over the
     // countdown, and meaningless once the car has stopped or come off.
     const corner = this.state === STATE.RACING ? this.cornerAhead() : null;

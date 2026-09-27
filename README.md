@@ -16,6 +16,12 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
 - **Três carros** equilibrados para circuitos diferentes — nenhum é melhor, são
   indicados para traçados diferentes.
 - **Três pistas** mais as que construíres.
+- **Um carro que se conduz com as duas pontas**: trava-se para dentro das
+  curvas, foge em frente se lhe der força a mais à saída, e a traseira vem à
+  frente se largar o pé a meio. Nada disso é um truque programado — é o peso a
+  passar de um eixo para o outro, que é o que faz um carro comportar-se como um
+  carro. Com caixa de velocidades que se sente, e o corpo a inclinar-se, a
+  mergulhar e a assentar nas molas por cima de tudo isso.
 - **Construtor de pistas** que funciona com comando, com validação por
   autopiloto: não deixa guardar uma pista que o carro escolhido não consiga
   terminar.
@@ -246,7 +252,9 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   e não a velocidade. `this.understeer` agora compara com o mesmo orçamento
   já reduzido (`grip`) que a própria direcção usa para limitar o volante,
   para que o aviso apareça exactamente quando -- e porque -- a aderência
-  falha.
+  falha. `grip` é hoje o menor dos dois eixos: é o que o carro aguenta em
+  equilíbrio, e qual deles é o menor *é* a diferença entre subvirar e
+  sobrevirar.
 - **O travão tem de ser sempre mais forte do que largar o acelerador.** O
   arrasto do ar ao deixar de acelerar (`coastDrag` em `game/cars.js`) cresce
   com o quadrado da velocidade, e à velocidade máxima do Speed King chegava a
@@ -255,15 +263,56 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   agora o travão a rondar o dobro do arrasto de largar o pé à sua própria
   velocidade máxima, tal como já acontecia (sem se ter pensado nisso) no
   Slow Hand.
-- **Travar e acelerar não custam a mesma aderência, porque não põem o peso no
-  mesmo sítio.** A travar, o carro mergulha e carrega as rodas que o viram --
-  é por isso que se trava para dentro das curvas na vida real. A acelerar,
-  senta-se atrás e alivia-as, e o nariz foge em frente. O modelo cobrava aos
-  dois o mesmo (`GRIP_SHARE`), o que fazia do travão a pior coisa a tocar
-  antes de uma curva: o carro abrandava e seguia em frente na mesma, e
-  largar o acelerador dava uma curva melhor do que travar. Agora a travagem
-  usa `BRAKE_SHARE`, bastante mais baixo; a subviragem com o pé no
-  acelerador fica exactamente como estava.
+- **Um carro tem duas pontas, e é isso que o deixa rodar.** Durante muito
+  tempo houve um só orçamento de atrito para o carro inteiro. Um orçamento só
+  pode estar gasto ou não estar: dá subviragem, dá um deslizar de lado do
+  corpo todo, e nunca dá uma rotação, porque não há nada lá dentro que saiba
+  distinguir a ponta que vira da ponta que puxa. Todas as curvas acabavam da
+  mesma maneira -- acabou a aderência, o nariz foge -- e o travão de mão
+  precisava de um caso especial só para produzir a única coisa que o modelo
+  não sabia fazer.
+  Agora a carga divide-se, e a conta toda é `h/L`: cada metro por segundo ao
+  quadrado de aceleração passa essa fracção do peso de um eixo para o outro
+  (`CG_H`, `WEIGHT_F`, `BRAKE_BIAS` em `game/car.js`). Tudo o que um condutor
+  reconhece sai daí sem ter sido pedido. A travar, o peso vai para as rodas
+  que viram e o carro entra na curva -- e tira-o de trás, por isso travar
+  tarde traz a traseira. A acelerar, carrega as que puxam e alivia as que
+  viram, e o nariz foge em frente; com força a mais numa saída lenta, a
+  traseira vai à vida. Largar o pé a meio de uma curva devolve nariz e tira
+  cauda, e o carro roda. Nada disto está escrito em lado nenhum: são dois
+  eixos, duas cargas e a mesma figura de atrito aplicada a cada um.
+- **O volante limita-se pelo eixo da frente, não pelo mais fraco dos dois.**
+  A primeira versão disto media a direcção pela ponta com menos aderência, o
+  que parecia prudente e era um desastre: numa travagem a fundo a traseira é
+  sempre a mais fraca -- tem o nariz a levar-lhe o peso todo -- e o carro
+  simplesmente recusava-se a virar, que é exactamente a queixa que a travagem
+  já tinha tido antes. O que limita o quanto vale a pena rodar um volante é a
+  aderência das rodas que estão a ser rodadas. Se a traseira não acompanhar,
+  o que tem de acontecer é a traseira vir à frente.
+- **E a transferência é limitada pelo que os pneus conseguem empurrar.** O
+  travão é de propósito mais forte do que a figura de curva (ver `BRAKE_GRIP`
+  abaixo). Sem um limite, essa licença virava peso que o carro não tem: uma
+  travagem a 1,9 g atirava metade da carga para fora do eixo de trás e não
+  havia direcção nenhuma. A transferência usa a desaceleração que a borracha
+  daria, não a que o travão dá.
+- **A caixa de velocidades passou a sentir-se, não só a ouvir-se.** As
+  rotações sempre subiram e caíram a cada mudança para o som do motor,
+  enquanto o carro continuava a puxar por tudo isso como se tivesse uma única
+  mudança infinitamente longa. Duas coisas mudam isso e nenhuma delas pode
+  tornar o carro mais rápido ou mais lento: uma curva de binário, melhor um
+  pouco antes do limitador e mais mole nas duas pontas, e a própria mudança,
+  que é um buraco a sério no arrasto em vez de um número. A escala da curva
+  não foi escolhida a olho -- é a que põe a aceleração de 0 a 150 do carro com
+  caixa em cima da do carro sem ela, com a diferença a caber num décimo de
+  segundo.
+- **A queda de rotações estava errada, e era ela que fazia o motor soar a
+  sirene.** `gearFor` esticava a banda de cada mudança pela mesma varredura
+  completa, portanto todas as mudanças davam a mesma queda enorme e o motor
+  recomeçava do fundo seis vezes a caminho da velocidade máxima. Numa caixa a
+  sério a rotação é a velocidade a dividir pela mudança, e a mudança está
+  escolhida para o limitador cair no topo da banda: de primeira para segunda a
+  agulha cai para três quintos, de quinta para sexta quase não se mexe. É uma
+  linha de código e é a diferença entre um motor e um alarme.
 - **Um salto não é um castigo.** Ao aterrar, a parte vertical do voo desaparece
   sozinha — projeta-se a velocidade no plano da estrada, que é o mesmo que dizer
   que foi para o chão. O que sobra é o arrastar de aterrar mal, e esse era
@@ -296,6 +345,27 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   comando o acelerador é um botão que se segura por hábito, e deixá-lo
   empurrar contra o travão comia um terço da travagem.
 
+- **O carro assenta nas molas, e é aí que mora quase toda a sensação.** Nada
+  disto muda para onde o carro vai: é o corpo a inclinar-se por cima de um
+  caminho que já está decidido, e são três passos de mola por imagem, não
+  quatro rodas. Mas uma vista que nunca se inclina numa curva, nunca mergulha
+  a travar e nunca aterra em lado nenhum é uma câmara num carril, e nenhum
+  modelo de pneu por baixo dela alguma vez se vai ler como conduzir. São 3,6°
+  de inclinação a 1,2 g, 3° de mergulho numa travagem a fundo, o corpo a subir
+  seis centímetros no ar e a assentar três ao chegar, e o lancil a chocalhar.
+- **O corpo aplica-se *depois* da suavização, e a versão suavizada guarda-se à
+  parte.** Escrever a inclinação por cima do valor que a suavização vai ler na
+  imagem seguinte é dá-la a si própria: só um quinto sai por imagem e o resto
+  acumula. Três graus de inclinação do corpo chegavam ao ecrã como dezasseis e
+  o horizonte caía ao chão em cada curva. Por isso `_camQ`/`_camP` (o chassis
+  suavizado) são campos distintos de `camQuat`/`camPos` (o que a câmara usa).
+- **O chocalhar do lancil vai por cima das molas, não por dentro.** Uma
+  suspensão a 2 Hz engole um chocalhar inteiro, que é precisamente a função
+  dela num carro a sério e precisamente o resultado errado aqui. E os frisos
+  contam-se por metro e não por segundo -- para o chocalhar subir com a
+  velocidade, como o verdadeiro -- mas a um espaçamento que nenhum lancil tem:
+  três frisos por metro são oitenta hertz a andar, e isso não é coisa que uma
+  imagem a sessenta por segundo consiga mostrar.
 - **Num circuito só a geometria dá a volta, a distância não.** O carro conta
   metros para cima do princípio ao fim da corrida e nunca volta a zero; é o
   `frameAt()` (`world/track.js`) que faz a distância dar a volta por dentro,
