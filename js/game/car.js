@@ -26,6 +26,23 @@ const BRAKE_DRAG = 3;
 const HANDBRAKE_HOLD = 0.5; // fraction of REAR grip left when it is pulled
 const HANDBRAKE_YAW = 0.95; // rad/s of extra rotation as the rear is locked
 const VU_DECAY = 3.2;       // how fast the tyres scrub a slide off
+// A tyre that is sliding sideways is pointing its force a little backwards,
+// because friction opposes where the rubber is actually going and not where
+// the car is aimed. That is the cost of an untidy line, and until now there
+// was none: a car could be thrown sideways through a corner and come out the
+// other end with every metre per second it went in with, so the clean way
+// round and the scruffy way round were worth the same. One times the lateral
+// force times the sine of the slip angle, which is what the drag really is.
+const SCRUB_DRAG = 1.0;
+// And a tyre makes sideways force only by running at an angle to where it is
+// going, sliding or not -- a few degrees' worth at the limit, less below it.
+// So part of every cornering force points backwards, and a corner costs speed
+// even when it is taken perfectly. That is the other half of why a line is
+// worth choosing, and the more important half: the first half only says the
+// inside of a bend is shorter, which on its own makes hugging the kerb the
+// answer to every corner. This says a straighter line keeps more of the speed
+// it arrives with, which is what turns entry and exit into decisions.
+const CORNER_DRAG = 0.115;   // tangent of the slip angle a tyre runs at, at the limit
 const SUBSTEP = 1 / 120;
 
 // Weight transfer, and why the car has two ends instead of one.
@@ -384,7 +401,30 @@ export class Car {
       Math.abs(exF) / Math.max(latF, 1), this.understeer));
     const omegaEff = absV > 0.8 ? (aTyre - gravLat) / this.v : 0;
 
-    let dpsi = omegaEff - this.v * f.kRight;
+    // Distance along the track is not distance along the road.
+    //
+    // A car on the inside of a bend is going round a smaller circle than the
+    // centreline is, so every metre it drives is worth more than a metre of
+    // track; on the outside it is worth less. The ratio is one minus the
+    // offset times the curvature, and it is the whole of why a line through a
+    // corner is worth choosing. Without it -- and it was not there -- the
+    // inside and the outside of every corner in the game were exactly the same
+    // length. Nothing was gained by tucking in and nothing was lost by running
+    // wide, so there was no line to find: only a speed, which the widest
+    // possible arc always won.
+    //
+    // The same ratio does both halves of the trade. It is how much track the
+    // car covers (`this.s` below), and it is how fast the road turns underneath
+    // it -- so the inside line, being shorter, is also tighter, and has to be
+    // taken slower. Which of the two wins is the corner's business, and the
+    // driver's.
+    const bend = Math.max(0.3, 1 - this.u * f.kRight);
+    // One cosine, used for both the rate the road turns underneath the car and
+    // the track it covers. They are a substep apart, which at 120 Hz is far
+    // less than the arithmetic is worth.
+    const cosPsi = Math.cos(this.psi);
+
+    let dpsi = omegaEff - this.v * cosPsi / bend * f.kRight;
     // The back stepping out. This is the whole of oversteer, and it needs no
     // case of its own: the handbrake produces it by halving the rear's grip
     // above, exactly as trail-braking and a bootful of throttle produce it by
@@ -403,12 +443,20 @@ export class Car {
     this.vu += -(exF + exR * REAR_SCRUB) * dt;
     this.vu *= Math.exp(-dt * VU_DECAY);
 
+    // What the corner costs in speed: the force the tyres are making, times how
+    // far round they are pointing to make it, plus the same again for whatever
+    // is genuinely sliding.
+    const beta = clamp(this.vu * cosPsi / Math.max(absV, 6), -0.6, 0.6);
+    const load = Math.min(Math.abs(aTyre) / Math.max(grip, 1), 1.2);
+    const drag = Math.abs(aTyre) * (CORNER_DRAG * load + Math.abs(beta) * SCRUB_DRAG);
+    this.v -= Math.sign(this.v) * Math.min(Math.abs(this.v), drag * dt);
+
     // What the body will lean on, worked out once here rather than guessed at
     // by the camera from the outside.
     this.latAcc = aTyre;
     this.longAcc = aLong;
 
-    this.s += this.v * Math.cos(this.psi) * dt;
+    this.s += this.v * cosPsi * dt / bend;
     this.u += (this.v * Math.sin(this.psi) + this.vu) * dt;
     this.hitWall(dt, input.steer);
 

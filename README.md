@@ -16,6 +16,9 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
 - **Três carros** equilibrados para circuitos diferentes — nenhum é melhor, são
   indicados para traçados diferentes.
 - **Três pistas** mais as que construíres.
+- **A linha conta**: por dentro é mais curto mas mais apertado, por fora é mais
+  largo mas mais longo, e uma curva bem feita guarda velocidade que uma curva
+  atirada perde. Entrada e saída passam a ser decisões, não decoração.
 - **Um carro que se conduz com as duas pontas**: trava-se para dentro das
   curvas, foge em frente se lhe der força a mais à saída, e a traseira vem à
   frente se largar o pé a meio. Nada disso é um truque programado — é o peso a
@@ -263,6 +266,30 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   agora o travão a rondar o dobro do arrasto de largar o pé à sua própria
   velocidade máxima, tal como já acontecia (sem se ter pensado nisso) no
   Slow Hand.
+- **Distância de pista não é distância de estrada, e era por isso que a linha
+  não valia nada.** O carro conta metros ao longo do eixo da pista. Quem vai
+  por dentro de uma curva anda à volta de um círculo mais pequeno do que o
+  eixo, portanto cada metro que percorre vale mais do que um metro de pista;
+  quem vai por fora, menos. A razão é `1 - u·k` -- o desvio vezes a curvatura
+  -- e sem ela, que não lá estava, o interior e o exterior de todas as curvas
+  do jogo mediam exactamente o mesmo. Não se ganhava nada por encostar ao lado
+  de dentro nem se perdia nada por abrir: medido, uma volta encostado por
+  dentro, pelo meio e por fora dava o mesmo ao décimo. Hoje são 0,9 s de
+  diferença na Costa Verde e 2,6 s no Circuito Vertigem.
+  A mesma razão faz as duas metades do negócio. É quanta pista o carro cobre, e
+  é a que velocidade a estrada roda por baixo dele -- portanto a linha de
+  dentro, sendo mais curta, é também mais apertada, e tem de ser feita mais
+  devagar. Qual das duas ganha é assunto da curva, e de quem conduz.
+- **E fazer uma curva custa velocidade mesmo sem escorregar nada.** Um pneu só
+  faz força de lado se andar a um ângulo de onde vai, sejam sete graus a
+  fundo ou menos abaixo disso, por isso parte da força que faz aponta para
+  trás. É por isso que um carro abranda numa curva longa com o acelerador
+  preso, e é a outra metade -- a mais importante -- de porque é que vale a pena
+  escolher uma linha: a primeira metade só diz que por dentro é mais curto, o
+  que sozinho faria da berma a resposta a todas as curvas. Esta diz que uma
+  linha mais direita guarda mais da velocidade com que chegou, e é isso que
+  transforma a entrada e a saída em decisões. Custa 0,5% do tempo de volta e
+  não trouxe um único despiste.
 - **Um carro tem duas pontas, e é isso que o deixa rodar.** Durante muito
   tempo houve um só orçamento de atrito para o carro inteiro. Um orçamento só
   pode estar gasto ou não estar: dá subviragem, dá um deslizar de lado do
