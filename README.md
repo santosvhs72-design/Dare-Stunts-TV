@@ -79,11 +79,17 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   não os tinha. Ao volante vê-se o capô com o vinco a meio, os espelhos
   retrovisores nas asas, as escovas do limpa-vidros paradas contra o capô e as
   portas a fechar os cantos de baixo — tudo modelado em metros e projetado pela
-  mesma câmara que desenha a estrada, não desenhado por cima dela.
+  mesma câmara que desenha a estrada, não desenhado por cima dela. E uma pala
+  sobre os mostradores, com a coroa a apanhar o céu e a sombra por baixo onde os
+  instrumentos assentam; ranhuras de desembaçamento no tampo; o rolo do topo das
+  portas a iluminar os cantos; e um aro de volante que se lê como um tubo
+  redondo em vez de uma mancha.
 - **Um carro a sério visto de fora**: o fantasma do recordista e a reposição da
   volta deixaram de ser oito caixas. O corpo é feito de secções ao longo do
   comprimento, estreitando para os dois extremos, com tejadilho, vidros, jantes,
-  farolins, asa traseira e a risca da casa — e cada carro no seu tom.
+  farolins, asa traseira e a risca da casa — e cada carro no seu tom. Com ancas
+  por cima de cada roda, soleiras escuras a separar o terço de baixo, tomadas de
+  ar nas ilhargas, difusor na traseira e jantes de cinco raios.
 - **Som ao navegar**: um clique curto sempre que o realce muda de item num
   menu ou numa fila — nunca ao conduzir, onde as mesmas teclas viram o volante.
 
@@ -244,6 +250,20 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   porque é ali que a geometria as põe, não porque alguém as tenha lá posto; e os
   espelhos desenham-se *antes* do capô, para que o capô tape o pé de cada haste
   -- em Canvas 2D não há profundidade nenhuma para o fazer sozinha.
+- **Um tablier sem pala é uma faixa lisa com mostradores pousados em cima**, e
+  era isso que era: o terço de baixo da imagem era um tom de cinzento só, com
+  coisas a flutuar nele. A pala é a única forma que diz "moldado" -- sobressai
+  da face, a coroa dela apanha o céu, e tudo o que fica por baixo cai numa
+  sombra onde os instrumentos depois assentam. Dois tons e um contorno, que é
+  como o resto do mundo também é feito. O bordo de cima segue os mostradores que
+  cobre, como uma pala a sério é estampada para os desimpedir.
+- **Um aro é um tubo, e um tubo desenhado como um anel chato é uma mancha.** A
+  superfície que se vê rola de virada para fora no bordo exterior, passando por
+  virada para o condutor no meio, até virada para dentro no outro -- por isso
+  desenha-se em duas faixas, com a direcção radial misturada na normal primeiro
+  para um lado e depois para o outro. No topo do volante isso põe um bordo
+  iluminado por fora e um escuro por dentro, que é tudo o que faz um círculo
+  parecer redondo.
 - **Uma caixa não tem forma nenhuma para a luz encontrar.** O carro visto de
   fora era oito caixas alinhadas com os eixos, e o problema não era o número de
   triângulos -- um carro não é nada ao lado de um quilómetro de estrada -- era
@@ -253,6 +273,21 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   tudo plano, como o resto do mundo, mas as faces apontam para lados suficientes
   para o mesmo shader que ilumina a pista distinguir um capô de uma ilharga sem
   que ninguém lho diga.
+- **Uma roda mais larga do que a carroçaria é um kart.** O corpo passou a ter
+  uma secção de cada lado de cada eixo, com meia largura maior: incha numa anca
+  por cima da roda e volta a recolher entre elas, que é o que uma cava de roda
+  é. Sem isso as rodas eram mais largas do que a chapa que era suposto tapá-las,
+  e o carro lia-se como quatro pneus com uma cunha equilibrada em cima.
+- **Uma soleira que se inclina para dentro ao descer vira a própria cara para o
+  chão**, e isso basta para o mesmo shader a sombrear mais escura do que a
+  ilharga por cima dela. Com a pintura do terço de baixo também mais escura, o
+  fundo do carro passa a ler-se como uma peça à parte -- e um carro de uma cor
+  só do tejadilho ao asfalto é um tijolo.
+- **Um disco escuro com um ponto claro no meio é uma roda a cinquenta metros e
+  não é nada a cinco**, e cinco é de onde a reposição vê. A face passa a ser
+  três anéis -- flanco, jante, cubo -- e o anel da jante alterna a cor segmento
+  a segmento: dez segmentos alternados são cinco raios, sem um triângulo além
+  dos que o anel já precisava.
 - **O ambiente é um chão de luz, não um nível.** A reposição desenhava o carro
   com `uAmbient = 1`, o que no shader quer dizer *sem sombreado nenhum*: com as
   oito caixas ainda passava, porque cada caixa já vinha com as faces escurecidas

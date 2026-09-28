@@ -114,7 +114,7 @@ const WIPERS = [
 // does hide the needle at walking pace. That is what the figures in the left
 // panel are for; dropping the wheel far enough to clear the dial left the
 // cockpit without a visible steering wheel at all, which is worse.
-const WHEEL = { y: -0.47, z: 0.60, r: 0.195, tube: 0.03, tilt: 0.34 };
+const WHEEL = { y: -0.47, z: 0.60, r: 0.215, tube: 0.034, tilt: 0.34 };
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
@@ -266,10 +266,16 @@ export class Hud {
   drawDoors(ctx, col, t, sit) {
     const last = col.length - 1;
     for (const [i, s] of [[0, -1], [last, 1]]) {
-      const sill = col[i][1], foot = col[i][3];
+      const sill = col[i][1], lip = col[i][2], foot = col[i][3];
       const top = [s * DOOR.x, DOOR.top * sit, DOOR.z];
+      const shelf = [s * DOOR.x, (DOOR.top - 0.09) * sit, DOOR.z + 0.12];
       const bottom = [s * DOOR.x, DOOR.bottom * sit, DOOR.z];
-      this.face([sill, top, bottom, foot], t.dash, 0.36);
+      // Two faces, not one: a door top is a roll that lies nearly flat and
+      // catches the sky, and a card below it that faces the driver and does
+      // not. The bright line where they meet is what draws the eye out to the
+      // corners of the picture instead of leaving them as two grey wedges.
+      this.face([sill, top, shelf, lip], t.dash, 0.46);
+      this.face([lip, shelf, bottom, foot], t.dash, 0.30);
     }
   }
 
@@ -284,6 +290,18 @@ export class Hud {
     for (let i = 0; i < col.length - 1; i++) {
       this.face([col[i][2], col[i + 1][2], col[i + 1][3], col[i][3]], t.dash, AMBIENT);
     }
+    // Demister slots, let into the top of the moulding where the glass meets
+    // it. Barely a centimetre tall on a surface that is almost edge-on, which
+    // is exactly what they look like in a real car from the driver's seat: two
+    // dark lines, and the reason the top of a dashboard is not a blank shelf.
+    for (const [i, f0, f1] of [[1, 0.14, 0.68], [3, 0.14, 0.68]]) {
+      const mix = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f,
+                                a[2] + (b[2] - a[2]) * f];
+      this.face([mix(col[i][1], col[i][2], f0), mix(col[i + 1][1], col[i + 1][2], f0),
+                 mix(col[i + 1][1], col[i + 1][2], f1), mix(col[i][1], col[i][2], f1)],
+        t.dash, 0.16);
+    }
+
     // The seam where the two meet. A moulding is two pieces, and at this size
     // the join between them is a hairline of light -- without it the whole
     // fascia is one slab and the step in the lighting has nothing to land on.
@@ -304,16 +322,28 @@ export class Hud {
   drawPosts(ctx, t) {
     const w = this.w, h = this.h;
     const foot = this.py([1.05, -0.45, 0.54]);
-    const pw = Math.max(12, w * 0.022);
-    ctx.fillStyle = tone(t.dash, litFor([0, 0.2, -0.98]) * 0.62);
+    const pw = Math.max(14, w * 0.030);
     for (const s of [-1, 1]) {
       const x = s < 0 ? 0 : w;
       const d = s < 0 ? 1 : -1;
+      const y1 = Math.min(h, foot);
+      ctx.fillStyle = tone(t.dash, litFor([0, 0.2, -0.98]) * 0.62);
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x + d * pw * 0.5, 0);
-      ctx.lineTo(x + d * pw * 1.8, Math.min(h, foot));
-      ctx.lineTo(x, Math.min(h, foot));
+      ctx.lineTo(x + d * pw * 1.8, y1);
+      ctx.lineTo(x, y1);
+      ctx.closePath();
+      ctx.fill();
+      // The inner face of the post, turned towards the middle of the car and
+      // away from the glass. One strip, and the post stops being a flat tab
+      // stuck to the edge of the screen.
+      ctx.fillStyle = tone(t.dash, litFor([0, 0.62, -0.78]) * 0.9);
+      ctx.beginPath();
+      ctx.moveTo(x + d * pw * 0.5, 0);
+      ctx.lineTo(x + d * pw * 0.82, 0);
+      ctx.lineTo(x + d * pw * 2.3, y1);
+      ctx.lineTo(x + d * pw * 1.8, y1);
       ctx.closePath();
       ctx.fill();
     }
@@ -326,6 +356,8 @@ export class Hud {
     const R = band * 0.4, sr = band * 0.26;
     const sdx = Math.min(band * 1.15, this.w * 0.26);
     const slipping = st.slip > SLIP_WARN;
+
+    this.drawBinnacle(ctx, t, lip, band, cx, cy, sdx, R, sr);
 
     const topKmh = st.topKmh || 240;
     const ticks = 8;
@@ -344,6 +376,49 @@ export class Hud {
     this.drawTurnCue(cx, cy, R, st);
     this.drawPanel(ctx, st, t, lip, band, cx - sdx - sr * 1.4, -1, slipping);
     this.drawPanel(ctx, st, t, lip, band, cx + sdx + sr * 1.4, 1, slipping);
+  }
+
+  // The hood over the instruments.
+  //
+  // A dashboard without one is a flat band with dials lying on it, and that is
+  // what this was: the whole lower third of the picture was one tone of grey
+  // with things floating on it. A binnacle is the single shape that says
+  // "moulded" -- it stands proud of the fascia, its crown catches the sky, and
+  // everything under it falls into a shadow that the instruments then sit in.
+  // Two tones and an outline, which is how the rest of the world is built too.
+  drawBinnacle(ctx, t, lip, band, cx, cy, sdx, R, sr) {
+    const w = this.w;
+    // The top edge follows the dials it covers, the way a real hood is pressed
+    // to clear them, and flattens out towards the doors.
+    const top = x => {
+      let y = lip + band * 0.36;
+      for (const [gx, g] of [[cx, R + band * 0.13], [cx - sdx, sr + band * 0.11],
+                             [cx + sdx, sr + band * 0.11]]) {
+        const dx = Math.abs(x - gx);
+        if (dx < g) y = Math.min(y, cy - Math.sqrt(g * g - dx * dx));
+      }
+      return y;
+    };
+    const N = 48, xs = [], ys = [];
+    for (let i = 0; i <= N; i++) { const x = w * i / N; xs.push(x); ys.push(top(x)); }
+    const run = (off) => {
+      ctx.moveTo(xs[0], ys[0] + off);
+      for (let i = 1; i <= N; i++) ctx.lineTo(xs[i], ys[i] + off);
+    };
+    // Under the hood, where the instruments live.
+    ctx.fillStyle = tone(t.dash, 0.30);
+    ctx.beginPath(); run(0);
+    ctx.lineTo(w, this.h); ctx.lineTo(0, this.h); ctx.closePath(); ctx.fill();
+    // The crown, turned up towards the sky and lit like it.
+    const crown = band * 0.1;
+    ctx.fillStyle = tone(t.dash, litFor([0, 0.88, -0.47]));
+    ctx.beginPath(); run(0);
+    for (let i = N; i >= 0; i--) ctx.lineTo(xs[i], ys[i] - crown);
+    ctx.closePath(); ctx.fill();
+    // The edge itself, where the moulding turns over.
+    ctx.strokeStyle = tone(t.rim, 0.8);
+    ctx.lineWidth = Math.max(1, this.h * 0.0022);
+    ctx.beginPath(); run(0); ctx.stroke();
   }
 
   // A co-driver's call, mounted where a real cluster mounts its own turn
@@ -556,28 +631,35 @@ export class Hud {
       cz + Math.sin(a) * rad * V[2],
     ];
 
+    // A rim is a tube, and a tube drawn as one flat ring is a smudge. The
+    // surface you see rolls from facing outwards at its outer edge, through
+    // facing the driver in the middle, to facing inwards at the other -- so it
+    // is drawn as two bands with the radial direction blended into the normal
+    // one way and then the other. At the top of the wheel that puts a lit edge
+    // along the outside and a dark one along the inside, which is the whole of
+    // what makes a circle look round.
     const rim = [];
     for (let i = 0; i <= N; i++) {
       const a = turn + i / N * Math.PI * 2;
-      rim.push([at(a, R - tube), at(a, R + tube), a]);
+      rim.push([at(a, R - tube), at(a, R), at(a, R + tube), a]);
     }
-    for (let i = 0; i < N; i++) {
-      const [ai, bi, a] = rim[i], [aj, bj] = rim[i + 1];
-      // A rim is a tube: the surface you see rolls from facing the driver at
-      // the middle of its width to facing outwards at the edges. Blending the
-      // radial direction into the plane normal gives each segment its own
-      // normal, and that is what makes a flat ring read as round.
-      const radial = v3.norm([Math.cos(a), Math.sin(a) * V[1], Math.sin(a) * V[2]]);
-      const lit = litFor(v3.norm([
-        radial[0] * 0.55, radial[1] * 0.55 + 0.42, radial[2] * 0.55 - 0.72]));
+    const band = (p0, p1, q1, q0, lit) => {
       ctx.fillStyle = tone(t.rim, lit);
       ctx.beginPath();
-      ctx.moveTo(this.px(ai), this.py(ai));
-      ctx.lineTo(this.px(bi), this.py(bi));
-      ctx.lineTo(this.px(bj), this.py(bj));
-      ctx.lineTo(this.px(aj), this.py(aj));
+      ctx.moveTo(this.px(p0), this.py(p0));
+      ctx.lineTo(this.px(p1), this.py(p1));
+      ctx.lineTo(this.px(q1), this.py(q1));
+      ctx.lineTo(this.px(q0), this.py(q0));
       ctx.closePath();
       ctx.fill();
+    };
+    for (let i = 0; i < N; i++) {
+      const [ai, mi, bi, a] = rim[i], [aj, mj, bj] = rim[i + 1];
+      const radial = v3.norm([Math.cos(a), Math.sin(a) * V[1], Math.sin(a) * V[2]]);
+      const roll = k => litFor(v3.norm([
+        radial[0] * k, radial[1] * k + 0.30, radial[2] * k - 0.60]));
+      band(ai, mi, mj, aj, roll(-0.8));
+      band(mi, bi, bj, mj, roll(0.8));
     }
 
     // Spokes and boss.
