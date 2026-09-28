@@ -25,6 +25,11 @@ h1.brand span{color:#ffb43a}
 .eyebrow{font-size:1.1vw;letter-spacing:.22em;text-transform:uppercase;
   color:#6f8299;font-weight:700;margin-bottom:1.4vh}
 
+/* As transições foram todas partidas a meio. Não são enfeite: são o tempo que
+   um menu leva a responder, e num televisor somam-se ao tempo que a tecla já
+   levou a chegar. Duzentos e vinte milissegundos a deslizar uma fila é um
+   quinto de segundo em que a navegação parece estar a pensar no assunto. */
+
 /* --- Home --- */
 .homewrap{display:flex;flex:1;align-items:center;gap:6vw}
 .homeside{flex:1}
@@ -38,18 +43,18 @@ h1.brand span{color:#ffb43a}
 .item{background:rgba(28,38,54,.6);border:2px solid rgba(120,160,210,.14);
   border-radius:14px;padding:2.2vh 2vw;font-size:1.7vw;font-weight:600;
   color:#eef3f9;display:flex;justify-content:space-between;align-items:center;gap:1vw;
-  transition:transform .12s,background .12s,border-color .12s}
+  transition:transform .06s,background .06s,border-color .06s}
 .item .hint{font-size:1.1vw;color:#8fa2ba;font-weight:400}
 .item.on{background:rgba(56,80,116,.92);border-color:#ffb43a;transform:translateX(1vw)}
 .item.on .hint{color:#ffd98a}
 
 /* --- Horizontal carousels (car + track pickers) --- */
 .rail{flex:1;display:flex;align-items:center;overflow:hidden}
-.railinner{display:flex;gap:2vw;transition:transform .22s cubic-bezier(.2,.7,.3,1);
+.railinner{display:flex;gap:2vw;transition:transform .11s cubic-bezier(.2,.7,.3,1);
   will-change:transform}
 .card{flex:0 0 auto;width:26vw;background:rgba(22,30,44,.72);
   border:2px solid rgba(120,160,210,.14);border-radius:18px;padding:1.6vw;
-  transition:transform .18s,border-color .18s,background .18s,opacity .18s;opacity:.5}
+  transition:transform .09s,border-color .09s,background .09s,opacity .09s;opacity:.5}
 .card.on{border-color:#ffb43a;background:rgba(38,52,74,.95);transform:scale(1.06);opacity:1;
   box-shadow:0 0 0 6px rgba(255,180,58,.16),0 2vh 4vh rgba(0,0,0,.5)}
 .card img{width:100%;height:auto;display:block;
@@ -104,10 +109,10 @@ h1.brand span{color:#ffb43a}
 
 /* The sequence strip: the track as a row of pieces, walked with left/right. */
 .strip{flex:0 0 auto;display:flex;gap:.6vw;overflow:hidden;padding:1vh 0}
-.stripinner{display:flex;gap:.6vw;transition:transform .2s cubic-bezier(.2,.7,.3,1)}
+.stripinner{display:flex;gap:.6vw;transition:transform .1s cubic-bezier(.2,.7,.3,1)}
 .pill{flex:0 0 auto;background:rgba(28,38,54,.75);border:2px solid rgba(120,160,210,.14);
   border-radius:10px;padding:1vh 1vw;font-size:1.1vw;white-space:nowrap;color:#c8d6e6;
-  transition:transform .14s,border-color .14s,background .14s}
+  transition:transform .07s,border-color .07s,background .07s}
 .pill.on{border-color:#ffb43a;background:rgba(56,80,116,.95);color:#fff;transform:translateY(-.6vh)}
 .pill.cp{color:#ffd98a}
 .pill.end{opacity:.6;font-style:italic}
@@ -138,7 +143,7 @@ h1.brand span{color:#ffb43a}
 .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1vh 1vw;margin-top:1vh}
 .gcell{background:rgba(28,38,54,.7);border:2px solid rgba(120,160,210,.14);
   border-radius:12px;padding:1.6vh 1vw;text-align:center;font-size:1.3vw;font-weight:600;
-  transition:transform .12s,border-color .12s,background .12s}
+  transition:transform .06s,border-color .06s,background .06s}
 .gcell.on{border-color:#ffb43a;background:rgba(56,80,116,.95);transform:scale(1.06)}
 
 .params{display:flex;flex-direction:column;gap:1vh;margin-top:1vh;min-width:30vw}
@@ -162,7 +167,7 @@ h1.brand span{color:#ffb43a}
 .kbrow{display:flex;gap:.7vw}
 .key{flex:1 1 0;background:rgba(28,38,54,.7);border:2px solid rgba(120,160,210,.14);
   border-radius:10px;padding:1.2vh 0;text-align:center;font-size:1.4vw;font-weight:600;
-  transition:transform .1s,border-color .1s,background .1s}
+  transition:transform .05s,border-color .05s,background .05s}
 .key.on{border-color:#ffb43a;background:rgba(56,80,116,.95);transform:scale(1.08)}
 .key.wide{flex:3 1 0;font-size:1.1vw}
 

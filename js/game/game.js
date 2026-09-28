@@ -129,6 +129,7 @@ export class Game {
     this.lastTime = 0;
     this.fov = 70;
     this.raf = null;
+    this._skip = 0;
   }
 
   load(def) {
@@ -257,7 +258,15 @@ export class Game {
       if (this.msg.time <= 0) this.msg = null;
     }
 
-    this.render(dt);
+    // A menu is a full-screen panel laid over the world, and the world behind
+    // it is a whole 3D frame plus a whole painted cockpit. Paused, none of it
+    // is moving and 82% of it is behind a dark backdrop -- so it is a frame's
+    // work per frame spent on something nobody is looking at, taken from the
+    // one thread the menu itself needs in order to answer a button. It is
+    // still redrawn often enough that a compositor which drops the buffer has
+    // something to put back, and no more often than that.
+    const idling = this.state === STATE.PAUSED ? 5 : this.state === STATE.FINISHED ? 2 : 1;
+    if (idling === 1 || this._skip++ % idling === 0) this.render(dt);
   }
 
   // A co-driver's call: which way, and how urgently, the road ahead needs more

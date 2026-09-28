@@ -172,6 +172,31 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   O B tem nome próprio em vez de partilhar o `Escape` do Voltar do telecomando,
   porque a meio de uma volta é o travão de mão -- e um travão de mão que também
   quer dizer "voltar" abre o menu de pausa a meio de uma curva.
+- **Um menu que engole pressões é pior do que um menu lento.** Whatever é
+  apanhado por baixo de um polegar quando o ecrã muda fica fora de serviço até
+  ser largado -- é isso que impede o acelerador de escolher sozinho a entrada
+  do menu que aparece no fim da volta. O que conta como "largado" é o aparelho
+  dizer que sim: um `keyup`, ou um botão que deixa de ser reportado pelo
+  comando, e mais nada. Durante um tempo isto era inferido dos tempos, na
+  teoria de que algum aparelho pudesse reportar uma repetição como um largar
+  seguido imediatamente de uma pressão. A teoria custou pressões a sério: dois
+  toques a menos de sessenta milissegundos um do outro liam-se como um botão
+  nunca largado, por isso navegar com pressa era carregar duas vezes e receber
+  uma. Quem está mesmo a segurar os botões importa mais do que um aparelho que
+  ninguém tem.
+- **Um televisor não tem thread a mais.** Com o menu de pausa aberto nada se
+  mexe, e o painel de ecrã inteiro que o cobre tapa tudo o que está por trás --
+  mas o mundo continuava a ser desenhado sessenta vezes por segundo por baixo
+  dele. Era uma imagem inteira de trabalho por imagem, gasta em algo que
+  ninguém está a ver, tirada à única thread de que o próprio menu precisa para
+  responder a um botão. Em pausa passa a ser desenhado uma vez em cada cinco
+  (`frame()` em `game/game.js`): o suficiente para um compositor que descarte o
+  buffer ter o que repor, e mais nada. As chamadas de desenho passaram de 2040
+  para 408 por segundo.
+- **As transições são tempo de resposta, não enfeite.** Duzentos e vinte
+  milissegundos a deslizar uma fila é um quinto de segundo em que a navegação
+  parece estar a pensar no assunto -- e num televisor somam-se ao tempo que a
+  tecla já levou a chegar. Foram todas partidas a meio.
 - **A interface nunca usa o foco do DOM.** Cada ecrã tem o seu próprio cursor e
   reage a ações com nome, o que evita toda uma classe de problemas de foco. Tem
   um preço: o browser não rola atrás de uma classe como rolaria atrás do foco,
