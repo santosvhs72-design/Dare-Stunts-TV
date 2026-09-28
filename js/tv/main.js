@@ -262,7 +262,7 @@ game.onFinish = ({ time, best, record, carRecord, lapTimes, circuit, scored }) =
     : carRecord ? `Melhor com o ${esc(game.car0.name)}!` : 'Terminado';
   const sub = record
     ? `${circuit ? 'Melhor volta' : 'Melhor tempo'} em ${esc(game.def.name)}`
-      + ` com o ${esc(game.car0.name)}${circuit ? `: ${formatTime(scored)}` : ''}`
+      + ` com o ${esc(game.car0.name)}`
     : bestLine;
   // On a circuit the total is only half the story: which lap was the good one
   // is the part worth looking at, so every one of them is listed with the best
@@ -272,11 +272,19 @@ game.onFinish = ({ time, best, record, carRecord, lapTimes, circuit, scored }) =
     `<div class="lap${ms === best2 ? ' best' : ''}"><span>Volta ${i + 1}</span>`
     + `<b>${formatTime(ms)}</b></div>`).join('')}</div>`;
 
+  // The big number is the lap, never the sum of them. A total depends on how
+  // many laps somebody chose to drive and compares with nothing; a single lap
+  // is the whole of what this track is scored on, and putting anything else in
+  // the largest type on the screen only makes the score look like something it
+  // is not. The total is still there, under the laps that made it.
+  const total = circuit && lapTimes && lapTimes.length > 1
+    ? `<p class="sub" style="margin-top:.8vh">Total das ${lapTimes.length} voltas`
+      + ` &middot; ${formatTime(time)}</p>` : '';
   const el = node(`<div class="modal"><div class="panel centered">
     <h2>${title}</h2>
-    <div class="bigtime">${formatTime(time)}</div>
+    <div class="bigtime">${formatTime(scored)}</div>
     <p class="sub">${sub}</p>
-    ${laps}
+    ${laps}${total}
     <div class="menu" id="mi" style="margin-top:2vh"></div>
     <div class="legend"><span class="a"><em>A</em>escolher</span>
       <span class="pad" id="padStatus"></span></div>

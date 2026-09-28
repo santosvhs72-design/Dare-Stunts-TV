@@ -710,25 +710,28 @@ export class Hud {
       ctx.fillRect(x, y, pw, 2);
     };
 
+    // The big clock is the lap, not the race. A total is a sum of laps: it
+    // depends on how many were chosen, it cannot be compared with anybody
+    // else's, and it is not what is being driven for. The number a driver is
+    // racing against is the one going round right now, so that is the one in
+    // the biggest type. The total stays, in small, underneath.
     ctx.textAlign = 'center';
     panel(w / 2 - 108, top, 216, 56);
     ctx.fillStyle = AMBER;
     ctx.font = `700 32px ${MONO}`;
-    ctx.fillText(formatTime(st.timeMs), w / 2, top + 38);
+    ctx.fillText(formatTime(st.lapMs != null ? st.lapMs : st.timeMs), w / 2, top + 38);
 
-    // The lap being driven, under the total. On a circuit the total is a sum
-    // of laps and says little on its own; this is the number being raced.
     let below = top + 56;
-    if (st.lapMs != null) {
+    if (st.lapMs != null && st.laps > 1) {
       panel(w / 2 - 108, below + 6, 216, 30);
       ctx.fillStyle = tone(PRINT, 0.5);
       ctx.font = `600 10px ${FONT}`;
       ctx.textAlign = 'left';
-      ctx.fillText('ESTA VOLTA', w / 2 - 94, below + 26);
+      ctx.fillText('TOTAL', w / 2 - 94, below + 26);
       ctx.textAlign = 'right';
-      ctx.fillStyle = PRINT;
-      ctx.font = `700 19px ${MONO}`;
-      ctx.fillText(formatTime(st.lapMs), w / 2 + 94, below + 27);
+      ctx.fillStyle = tone(PRINT, 0.72);
+      ctx.font = `700 17px ${MONO}`;
+      ctx.fillText(formatTime(st.timeMs), w / 2 + 94, below + 27);
       below += 36;
       ctx.textAlign = 'center';
     }

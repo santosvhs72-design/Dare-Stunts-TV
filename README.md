@@ -59,7 +59,8 @@ jogo, uma interface desenhada para se ver do sofá e conduzir com comando.
   ficam à vista com a melhor realçada, e o ecrã de fim de corrida lista-os
   todos. **O recorde de um circuito é a melhor volta**, não a soma: assim não
   depende de quantas voltas foram escolhidas e todos os tempos do quadro
-  continuam comparáveis entre si -- e o fantasma guardado é o dessa volta,
+  continuam comparáveis entre si, e o quadro passa a mostrá-la assim que ela
+  acontece em vez de esperar pelo fim -- e o fantasma guardado é o dessa volta,
   repetido a cada volta que se dá.
 - **Luz nos túneis**: um túnel deixa de ser estrada à luz do dia com um tecto
   por cima. A luz do dia esvai-se ao longo dos primeiros metros de bocado, o
@@ -453,6 +454,29 @@ Três decisões que não são óbvias e que é bom não desfazer sem saber porqu
   velocidade, como o verdadeiro -- mas a um espaçamento que nenhum lancil tem:
   três frisos por metro são oitenta hertz a andar, e isso não é coisa que uma
   imagem a sessenta por segundo consiga mostrar.
+- **Uma volta é uma volta no momento em que acaba, não quando a corrida acaba.**
+  O quadro ao canto do cockpit mostrava o recorde antigo durante o resto da
+  corrida e depois anunciava, no fim, uma coisa que o condutor já tinha feito
+  duas voltas antes. `bank()` (`game/game.js`) escreve-a assim que a volta
+  fecha -- o que também faz o recorde sobreviver a abandonar a corrida que o
+  deu, e é justo: a volta foi feita de qualquer maneira.
+  O fantasma **não** se escreve ali. É uma volta inteira de amostras para
+  serializar, o que num televisor é um solavanco, e trocar o carro contra quem
+  se corre pela própria sombra a meio da volta é pior do que o solavanco. Isso
+  espera pelo fim -- e `startBest`, o recorde tal como estava quando a corrida
+  começou, é o que se lembra de que esta corrida bateu o recorde mesmo depois
+  de `bank()` já ter escrito o número novo.
+- **O número grande é a volta, nunca a soma delas.** Um total depende de quantas
+  voltas alguém escolheu dar, não se compara com o de mais ninguém, e não é
+  aquilo por que se conduz. O que um condutor está a perseguir é a volta que
+  está a dar, portanto é essa que fica no corpo maior -- no relógio do cockpit
+  e no ecrã de fim de corrida. O total continua lá, pequeno, por baixo das
+  voltas que o fizeram.
+- **Os tempos por volta são milissegundos inteiros.** O mesmo número aparece
+  duas vezes ao mesmo tempo -- na lista de voltas e, se for a melhor delas, no
+  quadro ao canto -- e os dois sítios arredondavam-no de maneiras diferentes.
+  Um recorde que se lê um centésimo mais lento do que a volta que o deu é do
+  género de coisa que ninguém consegue desver.
 - **Num circuito só a geometria dá a volta, a distância não.** O carro conta
   metros para cima do princípio ao fim da corrida e nunca volta a zero; é o
   `frameAt()` (`world/track.js`) que faz a distância dar a volta por dentro,

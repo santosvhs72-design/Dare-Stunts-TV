@@ -158,7 +158,6 @@ export class Game {
     // A track that comes back to its own start is driven in laps; one that
     // does not is the single run it has always been.
     this.laps = track.closed ? Math.max(1, def.laps || DEFAULT_LAPS) : 1;
-    this.best = getBest(def.id);
     this.loadGhostFor(def.id);
     this.restart();
   }
@@ -191,6 +190,11 @@ export class Game {
     this.msg = null;
     this.finalTime = null;
     this.newRecord = false;
+    // What there was to beat when this run started. Read fresh every time,
+    // because the run before this one may have written a new one down.
+    this.best = getBest(this.def.id);
+    this.startBest = this.best;
+    this.startCarBest = getCarBest(this.def.id, this.car0.id);
     this.lastBeep = null;
     this.ghostRec = new GhostRecorder(this.track);
     this.ghostDelta = null;
@@ -350,8 +354,10 @@ export class Game {
       else {
         this.cpIndex = 0;
         if (this.ghost) this.ghost.reset();
-        this.setMessage(`VOLTA ${this.lap + 1} / ${this.laps}`,
-          formatTime(this.closeLap()), '#ffb43a', 1.6);
+        const ms = this.closeLap();
+        const rec = this.bank(ms);
+        this.setMessage(rec ? 'RECORDE!' : `VOLTA ${this.lap + 1} / ${this.laps}`,
+          formatTime(ms), rec ? '#5fd894' : '#ffb43a', 1.6);
         if (this.sound) this.sound.checkpoint();
       }
     }
@@ -359,7 +365,12 @@ export class Game {
 
   // The lap just crossed, in its own right rather than as a running total.
   closeLap() {
-    const ms = this.timeMs - this.lapStart;
+    // Whole milliseconds, because this same number is about to be shown twice
+    // at once -- in the list of laps and, if it is the best of them, on the
+    // board in the corner -- and the two places round it differently. A record
+    // that reads a hundredth slower than the lap that set it is the sort of
+    // thing nobody can unsee.
+    const ms = Math.floor(this.timeMs - this.lapStart);
     this.lapTimes.push(ms);
     this.lapStart = this.timeMs;
     return ms;
@@ -367,6 +378,30 @@ export class Game {
 
   bestLap() {
     return this.lapTimes.length ? Math.min(...this.lapTimes) : null;
+  }
+
+  // A lap is a lap the moment it is finished, not when the race is over.
+  //
+  // The board in the corner of the cockpit used to go on showing the old
+  // record for the rest of the race, and then announce at the finish something
+  // the driver had already done two laps earlier. Writing it down here also
+  // means a record survives quitting the race that set it, which is only fair:
+  // the lap was driven either way.
+  //
+  // The ghost is *not* written here. It is a whole lap's worth of samples to
+  // serialise, which on a television is a stutter, and swapping the car you
+  // are racing against for your own shadow half way round is worse than the
+  // stutter. That waits for the finish -- and `startBest`, below, is what
+  // remembers that this run beat the record even after this has already
+  // written the new number down.
+  bank(ms) {
+    const prevCar = getCarBest(this.def.id, this.car0.id);
+    if (prevCar == null || ms < prevCar.ms) saveCarBest(this.def.id, this.car0.id, ms);
+    const prev = getBest(this.def.id);
+    if (prev != null && ms >= prev.ms) return false;
+    saveBest(this.def.id, ms, this.car0.id);
+    this.best = { ms: Math.round(ms), car: this.car0.id };
+    return true;
   }
 
   // The part of the recording the record is actually about: on a circuit the
@@ -382,7 +417,7 @@ export class Game {
   finish() {
     this.state = STATE.FINISHED;
     this.finalTime = this.timeMs;
-    this.closeLap();      // the one being driven as the line came up
+    this.bank(this.closeLap());   // the one being driven as the line came up
     // Kept regardless of whether this lap set any record: a replay is about
     // watching the drive just made, not about who holds the track.
     this.lastLap = { car: this.car0.id, p: this.ghostRec.p.slice(), ms: this.finalTime };
@@ -392,18 +427,17 @@ export class Game {
     // and a best lap does not, so every time on the board stays comparable
     // with every other. A sprint has one lap and the two are the same number.
     const scored = this.track.closed ? this.bestLap() : this.finalTime;
-    const prev = getBest(this.def.id);
-    this.newRecord = prev == null || scored < prev.ms;
+    // Measured against the record as it stood when this run started, not as it
+    // stands now: bank() may already have written this very lap down two laps
+    // ago, and comparing against that would make every record beat itself into
+    // never having happened.
+    this.newRecord = this.startBest == null || scored < this.startBest.ms;
     // Kept apart from the overall record: a lap that beats your own previous
     // best with this car still means something even when a different car
     // already holds the track outright, and staying quiet about it would make
     // trying a car you are not fastest with feel pointless.
-    const prevCar = getCarBest(this.def.id, this.car0.id);
-    const newCarRecord = prevCar == null || scored < prevCar.ms;
-    if (newCarRecord) saveCarBest(this.def.id, this.car0.id, scored);
+    const newCarRecord = this.startCarBest == null || scored < this.startCarBest.ms;
     if (this.newRecord) {
-      saveBest(this.def.id, scored, this.car0.id);
-      this.best = { ms: Math.round(scored), car: this.car0.id };
       // The lap just driven becomes the ghost to beat -- and on a circuit that
       // is the best lap on its own, not the whole run, or it would be three
       // times longer than the time it claims to be. If storage refuses it,
